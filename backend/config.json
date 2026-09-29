@@ -8,6 +8,7 @@
   "dramatic_hold_seconds": 2.0,
   "whisper_model": "small",
   "ffmpeg_path": "ffmpeg",
+  "track_hands": true,
   "process_width": 1280,
   "process_height": 720,
   "output_width": 1080,
@@ -113,6 +114,20 @@
       "bg_color": null,
       "position": "top",
       "animation": "scale_punch_in"
+    },
+    "cutout-title": {
+      "font": "assets/fonts/Anton-Regular.ttf",
+      "font_size": 90,
+      "color": "#FFFFFF",
+      "outline_color": "#000000",
+      "outline_width": 3,
+      "bg_color": null,
+      "position": "center",
+      "animation": "scale_punch_in",
+      "text_behind_subject": true,
+      "show_mask_edge": true,
+      "mask_edge_color": "#FF0000",
+      "mask_edge_width": 5
     },
     "dramatic": {
       "font": "assets/fonts/Anton-Regular.ttf",

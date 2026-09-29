@@ -1,17 +1,19 @@
 """
-MediaPipe-based person segmentation plus face/body bounding-box detection.
+MediaPipe-based person segmentation plus face/body/hand bounding-box
+detection.
 
-Uses MediaPipe's Tasks API (ImageSegmenter / FaceDetector / PoseLandmarker)
-rather than the older `mediapipe.solutions.*` convenience classes -- the
-Windows PyPI wheels (checked on 0.10.35 and 1.0.1) no longer ship the
-`solutions` subpackage at all, only `tasks`. Functionally equivalent, just a
-different, slightly more verbose API that also needs its `.task`/`.tflite`
-model files, which are downloaded once into `assets/models/` on first use
-(same one-time-download pattern as the Whisper model).
+Uses MediaPipe's Tasks API (ImageSegmenter / FaceDetector / PoseLandmarker /
+HandLandmarker) rather than the older `mediapipe.solutions.*` convenience
+classes -- the Windows PyPI wheels (checked on 0.10.35 and 1.0.1) no longer
+ship the `solutions` subpackage at all, only `tasks`. Functionally
+equivalent, just a different, slightly more verbose API that also needs its
+`.task`/`.tflite` model files, which are downloaded once into
+`assets/models/` on first use (same one-time-download pattern as the
+Whisper model).
 """
 
 import urllib.request
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import cv2
@@ -27,6 +29,7 @@ _MODEL_URLS = {
     "selfie_segmenter.tflite": "https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/latest/selfie_segmenter.tflite",
     "blaze_face_short_range.tflite": "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/latest/blaze_face_short_range.tflite",
     "pose_landmarker_lite.task": "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task",
+    "hand_landmarker.task": "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/latest/hand_landmarker.task",
 }
 
 
@@ -45,19 +48,23 @@ class FrameAnalysis:
     person_mask: np.ndarray  # float32 [0,1], same H,W as the frame
     face_bbox: tuple[int, int, int, int] | None  # x, y, w, h in pixels
     body_bbox: tuple[int, int, int, int] | None
-    person_center_x_ratio: float  # 0..1, used by layout_engine to decide left/right placement
+    hand_bboxes: list[tuple[int, int, int, int]] = field(default_factory=list)
+    person_center_x_ratio: float = 0.5  # used by layout_engine to decide left/right placement
 
 
 class PersonSegmenter:
     """
-    Wraps MediaPipe's ImageSegmenter (selfie segmentation), FaceDetector, and
-    PoseLandmarker so the heavy model graphs are initialized once and reused
-    across every frame, not re-created per call. All three run in VIDEO mode
-    with an explicit, monotonically increasing timestamp (required by the
-    Tasks API for video/stream input). Call `close()` when done with a video.
+    Wraps MediaPipe's ImageSegmenter (selfie segmentation), FaceDetector,
+    PoseLandmarker, and HandLandmarker so the heavy model graphs are
+    initialized once and reused across every frame, not re-created per
+    call. All four run in VIDEO mode with an explicit, monotonically
+    increasing timestamp (required by the Tasks API for video/stream
+    input). Call `close()` when done with a video.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, track_hands: bool = True) -> None:
+        self._track_hands = track_hands
+
         self._segmenter = vision.ImageSegmenter.create_from_options(
             vision.ImageSegmenterOptions(
                 base_options=BaseOptions(model_asset_path=_ensure_model("selfie_segmenter.tflite")),
@@ -80,11 +87,23 @@ class PersonSegmenter:
                 min_pose_detection_confidence=0.5,
             )
         )
+        self._hands = None
+        if track_hands:
+            self._hands = vision.HandLandmarker.create_from_options(
+                vision.HandLandmarkerOptions(
+                    base_options=BaseOptions(model_asset_path=_ensure_model("hand_landmarker.task")),
+                    running_mode=vision.RunningMode.VIDEO,
+                    num_hands=2,
+                    min_hand_detection_confidence=0.5,
+                )
+            )
 
     def close(self) -> None:
         self._segmenter.close()
         self._face.close()
         self._pose.close()
+        if self._hands:
+            self._hands.close()
 
     def analyze(self, frame_bgr: np.ndarray, timestamp_ms: int) -> FrameAnalysis:
         h, w = frame_bgr.shape[:2]
@@ -120,6 +139,16 @@ class PersonSegmenter:
                 y0, y1 = max(0.0, min(ys)), min(1.0, max(ys))
                 body_bbox = (int(x0 * w), int(y0 * h), int((x1 - x0) * w), int((y1 - y0) * h))
 
+        hand_bboxes: list[tuple[int, int, int, int]] = []
+        if self._hands:
+            hand_result = self._hands.detect_for_video(mp_image, timestamp_ms)
+            for hand_landmarks in hand_result.hand_landmarks or []:
+                xs = [lm.x for lm in hand_landmarks]
+                ys = [lm.y for lm in hand_landmarks]
+                x0, x1 = max(0.0, min(xs)), min(1.0, max(xs))
+                y0, y1 = max(0.0, min(ys)), min(1.0, max(ys))
+                hand_bboxes.append((int(x0 * w), int(y0 * h), int((x1 - x0) * w), int((y1 - y0) * h)))
+
         # Fall back to the segmentation mask's own centroid when pose/face
         # detection miss a frame (motion blur, person partly out of frame).
         if body_bbox:
@@ -128,4 +157,10 @@ class PersonSegmenter:
             ys_idx, xs_idx = np.where(mask > 0.5)
             center_x_ratio = float(np.mean(xs_idx) / w) if len(xs_idx) else 0.5
 
-        return FrameAnalysis(person_mask=mask, face_bbox=face_bbox, body_bbox=body_bbox, person_center_x_ratio=center_x_ratio)
+        return FrameAnalysis(
+            person_mask=mask,
+            face_bbox=face_bbox,
+            body_bbox=body_bbox,
+            hand_bboxes=hand_bboxes,
+            person_center_x_ratio=center_x_ratio,
+        )

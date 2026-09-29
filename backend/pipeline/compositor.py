@@ -22,6 +22,11 @@ def _hex_to_bgr(hex_color: str) -> tuple[int, int, int]:
     return (b, g, r)
 
 
+def _hex_to_rgb(hex_color: str) -> tuple[int, int, int]:
+    hex_color = hex_color.lstrip("#")
+    return int(hex_color[0:2], 16), int(hex_color[2:4], 16), int(hex_color[4:6], 16)
+
+
 def _pick_style(t: float, words: list[dict], config: dict) -> str:
     """Rule-based style trigger: dramatic for `dramatic_hold_seconds` after a
     keyword, energetic for a fast run of recent words, else casual -- see
@@ -59,7 +64,13 @@ def _active_words_for_style(t: float, words: list[dict], style: str, config: dic
     return [w for w in words if t - window <= w["start"] <= t and w["end"] >= t - window]
 
 
-def _apply_background(frame_bgr: np.ndarray, mask: np.ndarray, config: dict) -> np.ndarray:
+def _build_layers(frame_bgr: np.ndarray, mask: np.ndarray, config: dict) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Splits the frame into a background layer and a person layer (RGBA, alpha
+    = the segmentation mask) instead of pre-flattening them together --
+    keeping them separate is what lets the caller put captions in between
+    the two (Subject Mask & Track's "text behind subject").
+    """
     bg_mode = config.get("bg_mode", "solid")
     if bg_mode == "blur":
         background = cv2.GaussianBlur(frame_bgr, (55, 55), 0)
@@ -69,14 +80,28 @@ def _apply_background(frame_bgr: np.ndarray, mask: np.ndarray, config: dict) -> 
         color = _hex_to_bgr(config.get("background_color", "#F0F0F0"))
         background = np.full_like(frame_bgr, color)
 
-    person = frame_bgr
+    person_bgr = frame_bgr
     if config.get("person_mode") == "bw":
         gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
-        person = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
+        person_bgr = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
 
-    mask3 = np.repeat(mask[:, :, None], 3, axis=2)
-    composited = (person.astype(np.float32) * mask3 + background.astype(np.float32) * (1 - mask3)).astype(np.uint8)
-    return composited
+    alpha = np.clip(mask * 255, 0, 255).astype(np.uint8)
+    person_rgba = cv2.cvtColor(person_bgr, cv2.COLOR_BGR2RGBA)
+    person_rgba[:, :, 3] = alpha
+    return background, person_rgba
+
+
+def _draw_mask_edge(alpha: np.ndarray, color_hex: str, width: int) -> Image.Image:
+    """Traces the person cutout's silhouette (from its alpha channel) and returns a transparent RGBA image with just that outline drawn -- the colored edge overlay seen in the Subject Mask panel."""
+    h, w = alpha.shape[:2]
+    _, binary = cv2.threshold(alpha, 127, 255, cv2.THRESH_BINARY)
+    contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    canvas = np.zeros((h, w, 4), dtype=np.uint8)
+    if contours:
+        r, g, b = _hex_to_rgb(color_hex)
+        cv2.drawContours(canvas, contours, -1, (r, g, b, 255), thickness=max(1, width))
+    return Image.fromarray(canvas, mode="RGBA")
 
 
 def run_compositor(
@@ -114,7 +139,7 @@ def run_compositor(
     silent_path = str(Path(output_video).with_suffix("")) + "_silent.mp4"
     writer = cv2.VideoWriter(silent_path, cv2.VideoWriter_fourcc(*"mp4v"), fps, (proc_w, proc_h))
 
-    segmenter = PersonSegmenter()
+    segmenter = PersonSegmenter(track_hands=config.get("track_hands", True))
     styles = {name: StyleConfig(**cfg) for name, cfg in config["styles"].items()}
 
     try:
@@ -133,12 +158,14 @@ def run_compositor(
             style = styles[style_name]
             layout = decide_layout(analysis, style.position, proc_w, proc_h)
 
+            person_rgba = None
             if layout.full_frame:
-                composited = np.full_like(frame, _hex_to_bgr(config.get("background_color", "#F0F0F0")))
+                background = np.full_like(frame, _hex_to_bgr(config.get("background_color", "#F0F0F0")))
             else:
-                composited = _apply_background(frame, analysis.person_mask, config)
+                background, person_rgba = _build_layers(frame, analysis.person_mask, config)
 
-            base_pil = Image.fromarray(cv2.cvtColor(composited, cv2.COLOR_BGR2RGB)).convert("RGBA")
+            base_pil = Image.fromarray(cv2.cvtColor(background, cv2.COLOR_BGR2RGB)).convert("RGBA")
+            person_pil = Image.fromarray(person_rgba, mode="RGBA") if person_rgba is not None else None
 
             # Starburst emphasis graphic behind the person during a dramatic moment.
             if style_name == "dramatic" and not layout.full_frame and analysis.body_bbox:
@@ -150,7 +177,7 @@ def run_compositor(
             caption_img, tw, th = render_caption_frame(active_words, t, style, proc_w, proc_h)
 
             if tw and th and layout.text_anchor != "center":
-                x, y = text_box_for_anchor(layout.text_anchor, proc_w, proc_h, tw, th, analysis.face_bbox)
+                x, y = text_box_for_anchor(layout.text_anchor, proc_w, proc_h, tw, th, analysis.face_bbox, analysis.hand_bboxes)
                 # render_caption_frame already centers text on the full canvas;
                 # shift the whole canvas so that centered text lands at (x, y).
                 dx = x - (proc_w // 2 - tw // 2)
@@ -165,7 +192,20 @@ def run_compositor(
                 side_x = bx - divider.width - 10 if layout.text_anchor == "right" else bx + bw + 10
                 base_pil.alpha_composite(divider, (max(0, min(proc_w - divider.width, side_x)), by))
 
-            base_pil.alpha_composite(caption_img)
+            # Subject Mask & Track: "text behind subject" draws the caption
+            # before the person layer instead of after, so the person's
+            # silhouette occludes any part of the text it overlaps.
+            if style.text_behind_subject and person_pil is not None:
+                base_pil.alpha_composite(caption_img)
+                base_pil.alpha_composite(person_pil)
+            else:
+                if person_pil is not None:
+                    base_pil.alpha_composite(person_pil)
+                base_pil.alpha_composite(caption_img)
+
+            if style.show_mask_edge and person_rgba is not None:
+                edge = _draw_mask_edge(person_rgba[:, :, 3], style.mask_edge_color, style.mask_edge_width)
+                base_pil.alpha_composite(edge)
 
             out_bgr = cv2.cvtColor(np.array(base_pil.convert("RGB")), cv2.COLOR_RGB2BGR)
             writer.write(out_bgr)

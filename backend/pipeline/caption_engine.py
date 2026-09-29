@@ -30,6 +30,12 @@ class StyleConfig:
     bg_color: str | None
     position: str
     animation: str
+    # Subject Mask & Track (Phase 4). Defaulted so existing config.json
+    # presets keep working unchanged -- only presets that opt in set these.
+    text_behind_subject: bool = False
+    show_mask_edge: bool = False
+    mask_edge_color: str = "#FF0000"
+    mask_edge_width: int = 4
 
 
 _FONT_CACHE: dict[tuple[str, int], ImageFont.FreeTypeFont] = {}

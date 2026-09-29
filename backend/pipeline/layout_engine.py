@@ -44,6 +44,11 @@ def decide_layout(analysis: FrameAnalysis, position: str, frame_w: int, frame_h:
     return LayoutDecision(text_anchor=anchor, full_frame=False)
 
 
+def _overlaps(x: int, y: int, w: int, h: int, box: tuple[int, int, int, int]) -> bool:
+    bx, by, bw, bh = box
+    return not (x + w < bx or x > bx + bw or y + h < by or y > by + bh)
+
+
 def text_box_for_anchor(
     anchor: str,
     frame_w: int,
@@ -51,8 +56,9 @@ def text_box_for_anchor(
     text_w: int,
     text_h: int,
     face_bbox: tuple[int, int, int, int] | None,
+    hand_bboxes: list[tuple[int, int, int, int]] | None = None,
 ) -> tuple[int, int]:
-    """Returns a top-left (x, y) for the text box that keeps it clear of the face bbox where possible."""
+    """Returns a top-left (x, y) for the text box that keeps it clear of the face and any tracked hands where possible."""
     margin = int(frame_w * 0.06)
 
     if anchor == "left":
@@ -66,11 +72,11 @@ def text_box_for_anchor(
     else:  # center
         x, y = frame_w // 2 - text_w // 2, frame_h // 2 - text_h // 2
 
-    if face_bbox:
-        fx, fy, fw, fh = face_bbox
-        overlaps = not (x + text_w < fx or x > fx + fw or y + text_h < fy or y > fy + fh)
-        if overlaps and anchor in ("left", "right"):
-            # Push the box above or below the face instead of sideways past it.
-            y = max(margin, fy - text_h - margin) if fy > frame_h / 2 else min(frame_h - text_h - margin, fy + fh + margin)
+    obstacles = ([face_bbox] if face_bbox else []) + (hand_bboxes or [])
+    for box in obstacles:
+        if _overlaps(x, y, text_w, text_h, box) and anchor in ("left", "right"):
+            # Push the box above or below the obstacle instead of sideways past it.
+            bx, by, bw, bh = box
+            y = max(margin, by - text_h - margin) if by > frame_h / 2 else min(frame_h - text_h - margin, by + bh + margin)
 
     return max(0, x), max(0, y)
