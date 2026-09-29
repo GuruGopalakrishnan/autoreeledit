@@ -2,16 +2,17 @@
 captions into the final output video, then muxes the original audio back in
 with ffmpeg (the frame-writing pass itself is silent)."""
 
+import math
 import subprocess
 from pathlib import Path
 
 import cv2
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageDraw
 from tqdm import tqdm
 
 from .caption_engine import StyleConfig, render_caption_frame
-from .graphic_engine import draw_dotted_line, draw_starburst
+from .graphic_engine import draw_confetti, draw_dotted_line, draw_starburst
 from .layout_engine import decide_layout, text_box_for_anchor
 from .segmenter import PersonSegmenter
 
@@ -97,6 +98,83 @@ def _build_layers(frame_bgr: np.ndarray, mask: np.ndarray, config: dict) -> tupl
     return background, person_rgba
 
 
+_VIGNETTE_CACHE: dict[tuple[int, int], np.ndarray] = {}
+
+
+def _vignette_mask(w: int, h: int) -> np.ndarray:
+    """Radial darkening mask, cached per (w, h) since it's identical every frame of a render."""
+    key = (w, h)
+    if key not in _VIGNETTE_CACHE:
+        yy, xx = np.mgrid[0:h, 0:w].astype(np.float32)
+        cx, cy = w / 2, h / 2
+        max_d = math.hypot(cx, cy)
+        d = np.hypot(xx - cx, yy - cy) / max_d
+        _VIGNETTE_CACHE[key] = np.clip(1.0 - (d**2) * 0.85, 0.18, 1.0)
+    return _VIGNETTE_CACHE[key]
+
+
+def _apply_vignette(frame_bgr: np.ndarray) -> np.ndarray:
+    mask = _vignette_mask(frame_bgr.shape[1], frame_bgr.shape[0])
+    return (frame_bgr.astype(np.float32) * mask[:, :, None]).astype(np.uint8)
+
+
+def _apply_spotlight(background: np.ndarray, center: tuple[int, int], radius: float) -> np.ndarray:
+    """Darkens `background` outside a soft circle at `center`, for the Spotlight Reveal title moment."""
+    h, w = background.shape[:2]
+    yy, xx = np.mgrid[0:h, 0:w].astype(np.float32)
+    d = np.hypot(xx - center[0], yy - center[1])
+    t = np.clip((d - radius) / max(1.0, radius), 0.0, 1.0)
+    mask = np.clip(1.0 - t * 0.92, 0.08, 1.0)
+    return (background.astype(np.float32) * mask[:, :, None]).astype(np.uint8)
+
+
+def _apply_zoom_punch(frame_bgr: np.ndarray, elapsed: float, duration: float = 0.25, max_scale: float = 1.07) -> np.ndarray:
+    """Whole-frame punch-in that decays to 1.0x over `duration` seconds from the moment's start."""
+    if elapsed >= duration:
+        return frame_bgr
+    scale = 1.0 + (max_scale - 1.0) * (1.0 - elapsed / duration)
+    h, w = frame_bgr.shape[:2]
+    nh, nw = max(h, int(h * scale)), max(w, int(w * scale))
+    resized = cv2.resize(frame_bgr, (nw, nh), interpolation=cv2.INTER_LINEAR)
+    y0, x0 = (nh - h) // 2, (nw - w) // 2
+    return resized[y0 : y0 + h, x0 : x0 + w]
+
+
+def _apply_shake(frame_bgr: np.ndarray, elapsed: float, duration: float = 0.35) -> np.ndarray:
+    """Decaying frame jitter for the first `duration` seconds of the moment, edge-replicated so no black border shows."""
+    if elapsed >= duration:
+        return frame_bgr
+    amplitude = 14.0 * (1.0 - elapsed / duration)
+    dx = amplitude * math.sin(elapsed * 60)
+    dy = amplitude * math.cos(elapsed * 47)
+    h, w = frame_bgr.shape[:2]
+    m = np.float32([[1, 0, dx], [0, 1, dy]])
+    return cv2.warpAffine(frame_bgr, m, (w, h), borderMode=cv2.BORDER_REPLICATE)
+
+
+def _apply_glitch(frame_bgr: np.ndarray, elapsed: float) -> np.ndarray:
+    """RGB channel-split glitch, pulsed in short bursts (every ~0.5s) rather than held continuously."""
+    if (elapsed % 0.5) > 0.09:
+        return frame_bgr
+    shift = 6
+    out = frame_bgr.copy()
+    out[:, :, 2] = np.roll(frame_bgr[:, :, 2], shift, axis=1)
+    out[:, :, 0] = np.roll(frame_bgr[:, :, 0], -shift, axis=1)
+    return out
+
+
+def _draw_neon_frame_overlay(w: int, h: int, color_hex: str, pulse: float) -> Image.Image:
+    """Pulsing colored border glow (nested semi-transparent rectangles) for the Neon Frame title moment."""
+    img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    r, g, b = _hex_to_rgb(color_hex)
+    thickness = 6 + int(6 * pulse)
+    for i in range(thickness):
+        alpha = int(130 * (1 - i / thickness))
+        draw.rectangle([(i, i), (w - 1 - i, h - 1 - i)], outline=(r, g, b, alpha))
+    return img
+
+
 def _draw_mask_edge(alpha: np.ndarray, color_hex: str, width: int) -> Image.Image:
     """Traces the person cutout's silhouette (from its alpha channel) and returns a transparent RGBA image with just that outline drawn -- the colored edge overlay seen in the Subject Mask panel."""
     h, w = alpha.shape[:2]
@@ -163,6 +241,8 @@ def run_compositor(
             style_name = _pick_style(t, words, config)
             style = styles[style_name]
             layout = decide_layout(analysis, style.position, proc_w, proc_h)
+            active_words = _active_words_for_style(t, words, style_name, config)
+            moment_elapsed = (t - active_words[0]["start"]) if active_words else 0.0
 
             person_rgba = None
             if layout.full_frame:
@@ -170,6 +250,19 @@ def run_compositor(
                 background = np.full_like(frame, _hex_to_bgr(fill))
             else:
                 background, person_rgba = _build_layers(frame, analysis.person_mask, config)
+                if style.color_pop:
+                    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                    background = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
+                if style.spotlight_moment:
+                    center, radius = None, None
+                    if analysis.face_bbox:
+                        fx, fy, fw, fh = analysis.face_bbox
+                        center, radius = (fx + fw // 2, fy + fh // 2), max(fw, fh) * 2.4
+                    elif analysis.body_bbox:
+                        bx, by, bw, bh = analysis.body_bbox
+                        center, radius = (bx + bw // 2, by + bh // 3), bh * 0.85
+                    if center:
+                        background = _apply_spotlight(background, center, radius)
 
             base_pil = Image.fromarray(cv2.cvtColor(background, cv2.COLOR_BGR2RGB)).convert("RGBA")
             person_pil = Image.fromarray(person_rgba, mode="RGBA") if person_rgba is not None else None
@@ -180,7 +273,6 @@ def run_compositor(
                 burst = draw_starburst(max(2, int(bh * 0.9)), "#FFD400", alpha=200)
                 base_pil.alpha_composite(burst, (bx + bw // 2 - burst.width // 2, max(0, by - burst.height // 3)))
 
-            active_words = _active_words_for_style(t, words, style_name, config)
             caption_img, tw, th = render_caption_frame(active_words, t, style, proc_w, proc_h)
 
             if tw and th and layout.text_anchor != "center":
@@ -214,7 +306,30 @@ def run_compositor(
                 edge = _draw_mask_edge(person_rgba[:, :, 3], style.mask_edge_color, style.mask_edge_width)
                 base_pil.alpha_composite(edge)
 
+            if style.neon_frame:
+                pulse = 0.5 + 0.5 * math.sin(t * 6)
+                base_pil.alpha_composite(_draw_neon_frame_overlay(proc_w, proc_h, style.color, pulse))
+
+            if style.confetti_moment:
+                base_pil.alpha_composite(draw_confetti(proc_w, proc_h, moment_elapsed))
+
+            if style.flash_moment:
+                flash_duration = 0.15
+                if moment_elapsed < flash_duration:
+                    alpha = int(255 * (1 - moment_elapsed / flash_duration))
+                    base_pil.alpha_composite(Image.new("RGBA", (proc_w, proc_h), (255, 255, 255, alpha)))
+
             out_bgr = cv2.cvtColor(np.array(base_pil.convert("RGB")), cv2.COLOR_RGB2BGR)
+
+            if style.vignette_moment:
+                out_bgr = _apply_vignette(out_bgr)
+            if style.zoom_punch:
+                out_bgr = _apply_zoom_punch(out_bgr, moment_elapsed)
+            if style.shake_moment:
+                out_bgr = _apply_shake(out_bgr, moment_elapsed)
+            if style.glitch_moment:
+                out_bgr = _apply_glitch(out_bgr, moment_elapsed)
+
             writer.write(out_bgr)
         if on_progress:
             on_progress(frame_count, frame_count)

@@ -6,7 +6,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
-from .graphic_engine import draw_pill_badge
+from .graphic_engine import draw_pill_badge, draw_ribbon_bar
 
 # Bundled multi-script fallback: whichever style font is active, a Tamil
 # word still needs an actual Tamil-capable font or it renders as tofu boxes
@@ -39,6 +39,19 @@ class StyleConfig:
     # Title Moments (Phase 5).
     show_starburst: bool = False
     full_frame_bg_color: str | None = None  # overrides config.background_color for a full-frame (position="beside_person") style
+    # Premium Title Moments -- each is a real per-frame effect applied in
+    # compositor.py, not just a caption color/font change. Defaulted off so
+    # every existing preset is unaffected.
+    spotlight_moment: bool = False  # darkens the background outside a circle centered on the person
+    flash_moment: bool = False  # white camera-flash pop for the first ~0.15s the moment is visible
+    confetti_moment: bool = False  # falling colored confetti for the whole moment
+    glitch_moment: bool = False  # pulsing RGB channel-split distortion
+    neon_frame: bool = False  # pulsing colored border around the whole frame
+    zoom_punch: bool = False  # whole-frame punch-in that decays over the first ~0.25s
+    color_pop: bool = False  # background shown desaturated (from the real video) while the person stays in color
+    ribbon_bar: bool = False  # full-width color bar that wipes in behind the text, like a news chyron
+    shake_moment: bool = False  # frame jitter that decays over the first ~0.35s
+    vignette_moment: bool = False  # strong dark vignette at the frame edges
 
 
 _FONT_CACHE: dict[tuple[str, int], ImageFont.FreeTypeFont] = {}
@@ -179,6 +192,16 @@ def render_caption_frame(
     if style.bg_color:
         badge = draw_pill_badge(tw, th, style.bg_color)
         canvas.alpha_composite(badge, (frame_w // 2 - badge.width // 2, frame_h // 2 - badge.height // 2))
+
+    if style.ribbon_bar:
+        # Wipes in from the center over the moment's first 0.25s. Drawn on
+        # this pre-shift canvas at frame_h * 0.5 (its own vertical center) so
+        # it tracks the text when the compositor repositions the whole
+        # canvas to its final anchor, same as the bg_color badge above.
+        progress = min(1.0, (current_time - visible[0]["start"]) / 0.25)
+        bar_height = int(th * 1.5) + style.outline_width * 2
+        ribbon = draw_ribbon_bar(frame_w, frame_h, bar_height, style.bg_color or "#E63946", progress, center_y_ratio=0.5)
+        canvas.alpha_composite(ribbon)
 
     block_top = frame_h // 2 - th // 2
 

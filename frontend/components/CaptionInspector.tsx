@@ -13,6 +13,16 @@ const MOMENT_LABELS: Record<string, string> = {
   "cutout-title": "Cutout Title",
   "black-pause": "Black Pause",
   "starburst-moment": "Starburst",
+  "spotlight-reveal": "Spotlight Reveal",
+  "flash-hit": "Flash Hit",
+  "confetti-pop": "Confetti Pop",
+  "glitch-cut": "Glitch Cut",
+  "neon-frame": "Neon Frame",
+  "zoom-punch": "Zoom Punch",
+  "color-pop": "Color Pop",
+  "ribbon-banner": "Ribbon Banner",
+  "shake-impact": "Shake Impact",
+  "vignette-focus": "Vignette Focus",
 };
 
 export function CaptionInspector({

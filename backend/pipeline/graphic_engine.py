@@ -9,6 +9,7 @@ shapes this simple.
 """
 
 import math
+import random
 
 from PIL import Image, ImageDraw
 
@@ -75,6 +76,45 @@ def draw_small_star(size: int, color: str) -> Image.Image:
         angle = math.pi * i / 4
         vertices.append((cx + r * math.cos(angle), cy + r * math.sin(angle)))
     draw.polygon(vertices, fill=_hex_to_rgba(color, 255))
+    return img
+
+
+_CONFETTI_COLORS = ["#FF3B3B", "#FFD400", "#39FF14", "#00D4FF", "#FF6EC7", "#FFFFFF"]
+
+
+def draw_confetti(width: int, height: int, elapsed: float, count: int = 40) -> Image.Image:
+    """Falling confetti squares for the Confetti Pop title moment. Each
+    particle's path is derived purely from its (fixed) index and `elapsed`
+    so it's reproducible frame-to-frame without keeping state between calls."""
+    img = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    for i in range(count):
+        rng = random.Random(i * 7919)
+        base_x = rng.uniform(0, width)
+        speed = rng.uniform(90, 220)
+        phase = rng.uniform(0, math.tau)
+        drift_amp = rng.uniform(10, 40)
+        size = rng.randint(5, 11)
+        start_delay = rng.uniform(0, 0.6)
+        t = max(0.0, elapsed - start_delay)
+        y = (t * speed) % (height + 40) - 20
+        x = base_x + drift_amp * math.sin(t * 3 + phase)
+        color = _CONFETTI_COLORS[i % len(_CONFETTI_COLORS)]
+        draw.rectangle([(x - size / 2, y - size / 2), (x + size / 2, y + size / 2)], fill=_hex_to_rgba(color, 235))
+    return img
+
+
+def draw_ribbon_bar(width: int, height: int, bar_height: int, color: str, progress: float, center_y_ratio: float = 0.78, alpha: int = 235) -> Image.Image:
+    """A full-width color bar that wipes in from the center as `progress` goes 0 -> 1, for the Ribbon Banner title moment (news-chyron style reveal)."""
+    img = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    progress = max(0.0, min(1.0, progress))
+    visible_w = int(width * progress)
+    if visible_w <= 0:
+        return img
+    cy = int(height * center_y_ratio)
+    x0 = width // 2 - visible_w // 2
+    draw.rectangle([(x0, cy - bar_height // 2), (x0 + visible_w, cy + bar_height // 2)], fill=_hex_to_rgba(color, alpha))
     return img
 
 

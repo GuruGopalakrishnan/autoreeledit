@@ -171,7 +171,131 @@
       "bg_color": "#FF6B00",
       "position": "dynamic",
       "animation": "slide_in"
+    },
+    "spotlight-reveal": {
+      "font": "assets/fonts/Anton-Regular.ttf",
+      "font_size": 64,
+      "color": "#FFD97A",
+      "outline_color": "#000000",
+      "outline_width": 3,
+      "bg_color": null,
+      "position": "lower_third",
+      "animation": "word_fade_in",
+      "spotlight_moment": true
+    },
+    "flash-hit": {
+      "font": "assets/fonts/Anton-Regular.ttf",
+      "font_size": 96,
+      "color": "#FFFFFF",
+      "outline_color": "#CC0000",
+      "outline_width": 5,
+      "bg_color": null,
+      "position": "center",
+      "animation": "scale_punch_in",
+      "flash_moment": true
+    },
+    "confetti-pop": {
+      "font": "assets/fonts/Anton-Regular.ttf",
+      "font_size": 80,
+      "color": "#FFD400",
+      "outline_color": "#000000",
+      "outline_width": 4,
+      "bg_color": null,
+      "position": "lower_third",
+      "animation": "scale_punch_in",
+      "confetti_moment": true
+    },
+    "glitch-cut": {
+      "font": "assets/fonts/Anton-Regular.ttf",
+      "font_size": 70,
+      "color": "#00FFD1",
+      "outline_color": "#FF00C8",
+      "outline_width": 3,
+      "bg_color": null,
+      "position": "center",
+      "animation": "scale_punch_in",
+      "glitch_moment": true
+    },
+    "neon-frame": {
+      "font": "assets/fonts/Montserrat-Variable.ttf",
+      "font_size": 46,
+      "color": "#00E5FF",
+      "outline_color": "#00263A",
+      "outline_width": 2,
+      "bg_color": null,
+      "position": "lower_third",
+      "animation": "slide_in",
+      "neon_frame": true
+    },
+    "zoom-punch": {
+      "font": "assets/fonts/Anton-Regular.ttf",
+      "font_size": 88,
+      "color": "#FFFFFF",
+      "outline_color": "#000000",
+      "outline_width": 4,
+      "bg_color": null,
+      "position": "center",
+      "animation": "scale_punch_in",
+      "zoom_punch": true
+    },
+    "color-pop": {
+      "font": "assets/fonts/Montserrat-Variable.ttf",
+      "font_size": 46,
+      "color": "#FFFFFF",
+      "outline_color": "#000000",
+      "outline_width": 3,
+      "bg_color": "#E63946",
+      "position": "lower_third",
+      "animation": "word_fade_in",
+      "color_pop": true
+    },
+    "ribbon-banner": {
+      "font": "assets/fonts/Anton-Regular.ttf",
+      "font_size": 50,
+      "color": "#FFFFFF",
+      "outline_color": null,
+      "outline_width": 0,
+      "bg_color": "#E63946",
+      "position": "top",
+      "animation": "word_fade_in",
+      "ribbon_bar": true
+    },
+    "shake-impact": {
+      "font": "assets/fonts/Anton-Regular.ttf",
+      "font_size": 92,
+      "color": "#FFEE00",
+      "outline_color": "#000000",
+      "outline_width": 5,
+      "bg_color": null,
+      "position": "center",
+      "animation": "scale_punch_in",
+      "shake_moment": true
+    },
+    "vignette-focus": {
+      "font": "assets/fonts/Montserrat-Italic-Variable.ttf",
+      "font_size": 48,
+      "color": "#F5F5F5",
+      "outline_color": "#000000",
+      "outline_width": 2,
+      "bg_color": null,
+      "position": "lower_third",
+      "animation": "word_fade_in",
+      "vignette_moment": true
     }
   },
-  "title_moment_presets": ["cutout-title", "black-pause", "starburst-moment"]
+  "title_moment_presets": [
+    "cutout-title",
+    "black-pause",
+    "starburst-moment",
+    "spotlight-reveal",
+    "flash-hit",
+    "confetti-pop",
+    "glitch-cut",
+    "neon-frame",
+    "zoom-punch",
+    "color-pop",
+    "ribbon-banner",
+    "shake-impact",
+    "vignette-focus"
+  ]
 }
