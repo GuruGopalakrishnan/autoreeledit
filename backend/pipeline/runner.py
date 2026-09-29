@@ -12,6 +12,24 @@ class PipelineError(Exception):
     """Raised for any expected failure (bad input, transcription/render error) so callers can show a clean message instead of a raw traceback."""
 
 
+def apply_style_choice(config: dict, words: list[dict], base_style: str, auto_mode: bool) -> dict:
+    """
+    Returns a config copy with `base_style` as the default (non-triggered)
+    preset. When `auto_mode` is off, also mutates `words` in place to clear
+    every keyword flag so Dramatic/Energetic never fire and base_style is
+    the only style shown. Shared by the quick auto-process flow
+    (`run_pipeline`) and the editor's render-from-project endpoint, so the
+    two can't drift on what "pick a style" actually means.
+    """
+    effective_config = dict(config)
+    effective_config["default_style"] = base_style
+    if not auto_mode:
+        effective_config["energetic_word_count"] = 10**9
+        for w in words:
+            w["is_keyword"] = False
+    return effective_config
+
+
 def run_pipeline(
     input_path: str,
     output_path: str,
@@ -70,14 +88,7 @@ def run_pipeline(
     if not words:
         raise PipelineError("No words to caption -- is there speech in this video, or content in the transcript file?")
 
-    effective_config = dict(config)
-    effective_config["default_style"] = base_style
-    if not auto_mode:
-        # Silence the auto-triggers (keyword -> Dramatic, word-rate -> Energetic)
-        # so base_style is the only style that ever fires.
-        effective_config["energetic_word_count"] = 10**9
-        for w in words:
-            w["is_keyword"] = False
+    effective_config = apply_style_choice(config, words, base_style, auto_mode)
 
     stage("rendering")
     try:
