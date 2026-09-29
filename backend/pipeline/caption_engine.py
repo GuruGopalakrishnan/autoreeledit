@@ -36,6 +36,9 @@ class StyleConfig:
     show_mask_edge: bool = False
     mask_edge_color: str = "#FF0000"
     mask_edge_width: int = 4
+    # Title Moments (Phase 5).
+    show_starburst: bool = False
+    full_frame_bg_color: str | None = None  # overrides config.background_color for a full-frame (position="beside_person") style
 
 
 _FONT_CACHE: dict[tuple[str, int], ImageFont.FreeTypeFont] = {}

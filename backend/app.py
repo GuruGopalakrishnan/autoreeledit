@@ -24,7 +24,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
 from pipeline import project_store
-from pipeline.captions import assign_synthetic_cue_ids, group_into_captions, replace_caption_text, set_caption_keyword
+from pipeline.captions import (
+    assign_synthetic_cue_ids,
+    group_into_captions,
+    replace_caption_text,
+    set_caption_keyword,
+    set_caption_title_moment,
+)
 from pipeline.compositor import run_compositor
 from pipeline.runner import PipelineError, apply_style_choice, run_pipeline
 from pipeline.srt_parser import load_words_from_srt
@@ -86,6 +92,15 @@ async def list_styles():
     config = _load_config()
     styles = [{"id": name, **cfg} for name, cfg in config["styles"].items() if name not in RESERVED_STYLE_NAMES]
     return {"styles": styles, "defaultStyle": config.get("default_style", "clean-white")}
+
+
+@app.get("/api/title-moments")
+async def list_title_moments():
+    """The Title Moments gallery's data source: the curated subset of presets in config.json's `title_moment_presets` meant for applying to one specific caption (Starburst, Cutout Title, Black Pause, ...) rather than the whole video."""
+    config = _load_config()
+    preset_ids = config.get("title_moment_presets", [])
+    moments = [{"id": name, **config["styles"][name]} for name in preset_ids if name in config["styles"]]
+    return {"moments": moments}
 
 
 # ---------------------------------------------------------------------------
@@ -266,6 +281,15 @@ async def update_caption(project_id: str, cue_id: int, body: dict = Body(...)):
         words = replace_caption_text(words, cue_id, body["text"], keyword_set)
     if "forceKeyword" in body:
         set_caption_keyword(words, cue_id, bool(body["forceKeyword"]))
+    if "titleMoment" in body:
+        raw = body["titleMoment"]
+        title_moment = str(raw) if raw else None
+        if title_moment is not None:
+            config = _load_config()
+            valid = _valid_base_styles(config) | RESERVED_STYLE_NAMES
+            if title_moment not in valid:
+                raise HTTPException(400, f"titleMoment must be one of {sorted(valid)} or null")
+        set_caption_title_moment(words, cue_id, title_moment)
 
     project_store.set_words(project_id, words)
     captions = group_into_captions(words)

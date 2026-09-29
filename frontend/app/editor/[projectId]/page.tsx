@@ -11,6 +11,7 @@ import {
   getJob,
   getProject,
   getStyles,
+  getTitleMoments,
   projectVideoUrl,
   renderProject,
   updateCaption,
@@ -36,6 +37,7 @@ export default function EditorPage() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [savingCaption, setSavingCaption] = useState(false);
   const [presets, setPresets] = useState<StylePreset[]>([]);
+  const [titleMoments, setTitleMoments] = useState<StylePreset[]>([]);
   const [baseStyle, setBaseStyle] = useState<string | null>(null);
   const [autoMode, setAutoMode] = useState(true);
   const [renderJob, setRenderJob] = useState<Job | null>(null);
@@ -66,6 +68,9 @@ export default function EditorPage() {
         setPresets(d.styles);
         setBaseStyle(d.defaultStyle);
       })
+      .catch(() => {});
+    getTitleMoments()
+      .then((d) => setTitleMoments(d.moments))
       .catch(() => {});
     return () => {
       if (projectPollRef.current) clearInterval(projectPollRef.current);
@@ -102,6 +107,19 @@ export default function EditorPage() {
         setProject((prev) => (prev ? { ...prev, captions: prev.captions.map((c) => (c.id === caption.id ? caption : c)) } : prev));
       } catch (e) {
         setError(e instanceof Error ? e.message : "Failed to update caption.");
+      }
+    },
+    [projectId, selectedId]
+  );
+
+  const selectTitleMoment = useCallback(
+    async (titleMoment: string | null) => {
+      if (selectedId === null) return;
+      try {
+        const { caption } = await updateCaption(projectId, selectedId, { titleMoment });
+        setProject((prev) => (prev ? { ...prev, captions: prev.captions.map((c) => (c.id === caption.id ? caption : c)) } : prev));
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Failed to apply the Title Moment.");
       }
     },
     [projectId, selectedId]
@@ -229,7 +247,14 @@ export default function EditorPage() {
           </div>
 
           <div className="space-y-5">
-            <CaptionInspector caption={selectedCaption} saving={savingCaption} onSave={saveCaptionText} onToggleKeyword={toggleKeyword} />
+            <CaptionInspector
+              caption={selectedCaption}
+              saving={savingCaption}
+              titleMoments={titleMoments}
+              onSave={saveCaptionText}
+              onToggleKeyword={toggleKeyword}
+              onSelectTitleMoment={selectTitleMoment}
+            />
 
             <div className="rounded-xl border border-white/10 bg-[#111117] p-5">
               {error && <p className="mb-3 text-xs text-red-400">{error}</p>}

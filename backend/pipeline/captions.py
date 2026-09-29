@@ -38,6 +38,7 @@ def group_into_captions(words: list[dict]) -> list[dict]:
                 "end": ws[-1]["end"],
                 "text": " ".join(w["text"] for w in ws),
                 "isKeyword": any(w["is_keyword"] for w in ws),
+                "titleMoment": ws[0].get("title_moment"),
             }
         )
     return captions
@@ -56,6 +57,7 @@ def replace_caption_text(words: list[dict], cue_id: int, new_text: str, keyword_
         return words
 
     start, end = cue_words[0]["start"], cue_words[-1]["end"]
+    existing_title_moment = cue_words[0].get("title_moment")  # preserve an applied Title Moment across a wording edit
     tokens = new_text.split()
     span = max(end - start, 0.1)
     per_word = span / max(1, len(tokens))
@@ -70,6 +72,7 @@ def replace_caption_text(words: list[dict], cue_id: int, new_text: str, keyword_
                 "end": start + (i + 1) * per_word,
                 "is_keyword": clean in keyword_set,
                 "cue_id": cue_id,
+                "title_moment": existing_title_moment,
             }
         )
 
@@ -84,3 +87,17 @@ def set_caption_keyword(words: list[dict], cue_id: int, force_keyword: bool) -> 
     for w in words:
         if w["cue_id"] == cue_id:
             w["is_keyword"] = force_keyword
+
+
+def set_caption_title_moment(words: list[dict], cue_id: int, title_moment: str | None) -> None:
+    """
+    Mutates `words` in place, tagging every word in a cue with a Title
+    Moment preset id (or clearing it with None) -- this is the general
+    form of set_caption_keyword: instead of only being able to force the
+    Dramatic trigger, the editor can apply any named preset (Starburst,
+    Cutout Title, Black Pause, ...) to just this one caption. Checked first,
+    ahead of every rule-based trigger, in compositor._pick_style.
+    """
+    for w in words:
+        if w["cue_id"] == cue_id:
+            w["title_moment"] = title_moment

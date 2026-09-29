@@ -29,6 +29,12 @@ export async function getStyles(): Promise<{ styles: StylePreset[]; defaultStyle
   return res.json();
 }
 
+export async function getTitleMoments(): Promise<{ moments: StylePreset[] }> {
+  const res = await fetch(`${API_BASE}/api/title-moments`);
+  if (!res.ok) throw new Error("Failed to load title moments.");
+  return res.json();
+}
+
 export async function createJob(
   video: File,
   baseStyle: string,
@@ -68,6 +74,7 @@ export type Caption = {
   end: number;
   text: string;
   isKeyword: boolean;
+  titleMoment: string | null;
 };
 
 export type Project = {
@@ -104,7 +111,7 @@ export function projectVideoUrl(projectId: string): string {
 export async function updateCaption(
   projectId: string,
   cueId: number,
-  patch: { text?: string; forceKeyword?: boolean }
+  patch: { text?: string; forceKeyword?: boolean; titleMoment?: string | null }
 ): Promise<{ caption: Caption }> {
   const res = await fetch(`${API_BASE}/api/projects/${projectId}/captions/${cueId}`, {
     method: "PATCH",

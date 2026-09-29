@@ -28,9 +28,15 @@ def _hex_to_rgb(hex_color: str) -> tuple[int, int, int]:
 
 
 def _pick_style(t: float, words: list[dict], config: dict) -> str:
-    """Rule-based style trigger: dramatic for `dramatic_hold_seconds` after a
-    keyword, energetic for a fast run of recent words, else casual -- see
-    config.json's `keyword_list` / `energetic_word_count`."""
+    """Style trigger, highest priority first: an explicit per-caption Title
+    Moment (set by hand in the editor) always wins; then the rule-based
+    triggers -- dramatic for `dramatic_hold_seconds` after a keyword,
+    energetic for a fast run of recent words; else the chosen base style --
+    see config.json's `keyword_list` / `energetic_word_count`."""
+    for w in words:
+        if w.get("title_moment") and w["start"] <= t <= w["end"]:
+            return w["title_moment"]
+
     hold = config.get("dramatic_hold_seconds", 2.0)
     for w in words:
         if w["is_keyword"] and w["start"] <= t <= w["end"] + hold:
@@ -160,7 +166,8 @@ def run_compositor(
 
             person_rgba = None
             if layout.full_frame:
-                background = np.full_like(frame, _hex_to_bgr(config.get("background_color", "#F0F0F0")))
+                fill = style.full_frame_bg_color or config.get("background_color", "#F0F0F0")
+                background = np.full_like(frame, _hex_to_bgr(fill))
             else:
                 background, person_rgba = _build_layers(frame, analysis.person_mask, config)
 
@@ -168,7 +175,7 @@ def run_compositor(
             person_pil = Image.fromarray(person_rgba, mode="RGBA") if person_rgba is not None else None
 
             # Starburst emphasis graphic behind the person during a dramatic moment.
-            if style_name == "dramatic" and not layout.full_frame and analysis.body_bbox:
+            if style.show_starburst and not layout.full_frame and analysis.body_bbox:
                 bx, by, bw, bh = analysis.body_bbox
                 burst = draw_starburst(max(2, int(bh * 0.9)), "#FFD400", alpha=200)
                 base_pil.alpha_composite(burst, (bx + bw // 2 - burst.width // 2, max(0, by - burst.height // 3)))
