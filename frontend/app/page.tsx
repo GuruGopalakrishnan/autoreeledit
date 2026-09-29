@@ -17,6 +17,8 @@ export default function ProjectSetupPage() {
   const [file, setFile] = useState<File | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [transcriptFile, setTranscriptFile] = useState<File | null>(null);
+  const [transcriptText, setTranscriptText] = useState("");
+  const [transcriptMode, setTranscriptMode] = useState<"upload" | "paste">("upload");
   const [presets, setPresets] = useState<StylePreset[]>([]);
   const [baseStyle, setBaseStyle] = useState<string | null>(null);
   const [autoMode, setAutoMode] = useState(true);
@@ -68,7 +70,11 @@ export default function ProjectSetupPage() {
     setStarting(true);
     setError(null);
     try {
-      const { jobId } = await createJob(file, baseStyle, autoMode, transcriptFile);
+      const transcript =
+        transcriptMode === "paste" && transcriptText.trim()
+          ? new File([transcriptText], "pasted.srt", { type: "text/plain" })
+          : transcriptFile;
+      const { jobId } = await createJob(file, baseStyle, autoMode, transcript);
       setJob({ jobId, status: "queued", progress: 0, error: null });
       pollJob(jobId);
     } catch (e) {
@@ -76,7 +82,7 @@ export default function ProjectSetupPage() {
     } finally {
       setStarting(false);
     }
-  }, [file, baseStyle, autoMode, transcriptFile, pollJob]);
+  }, [file, baseStyle, autoMode, transcriptFile, transcriptMode, transcriptText, pollJob]);
 
   const isProcessing = job && job.status !== "done" && job.status !== "failed";
 
@@ -141,36 +147,70 @@ export default function ProjectSetupPage() {
             <section className="rounded-xl border border-white/10 bg-[#111117] p-5">
               <div className="mb-3 flex items-center gap-2">
                 <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#7c5cfc] text-xs font-bold">2</span>
-                <h2 className="text-sm font-semibold">Upload timestamped transcript (optional)</h2>
+                <h2 className="text-sm font-semibold">Timestamped transcript (optional)</h2>
               </div>
               <p className="mb-3 text-xs text-neutral-500">
-                Add an SRT file with timestamps. Skips Whisper entirely, so captions match your exact words. Without one, speech is auto-transcribed.
+                Skips Whisper entirely, so captions match your exact words. Without one, speech is auto-transcribed.
               </p>
 
-              {transcriptFile ? (
-                <div className="flex items-center justify-between rounded-lg border border-white/10 bg-white/5 px-3 py-2">
-                  <span className="truncate text-xs text-neutral-300">{transcriptFile.name}</span>
-                  <div className="flex shrink-0 gap-2">
-                    <button onClick={() => transcriptInputRef.current?.click()} className="text-xs text-[#a993ff] hover:underline">
-                      Replace
-                    </button>
-                    <button onClick={() => setTranscriptFile(null)} className="text-xs text-neutral-500 hover:text-red-400">
-                      Remove
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div
-                  onClick={() => transcriptInputRef.current?.click()}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    const f = e.dataTransfer.files?.[0];
-                    if (f) setTranscriptFile(f);
-                  }}
-                  className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-white/15 p-6 text-center hover:border-white/30"
+              <div className="mb-3 flex gap-1.5">
+                <button
+                  onClick={() => setTranscriptMode("upload")}
+                  className={`rounded-full border px-3 py-1 text-xs ${
+                    transcriptMode === "upload" ? "border-white bg-white text-black" : "border-white/15 text-neutral-300 hover:border-white/40"
+                  }`}
                 >
-                  <p className="text-xs text-neutral-400">Drop an .srt file here, or click to browse</p>
+                  Upload file
+                </button>
+                <button
+                  onClick={() => setTranscriptMode("paste")}
+                  className={`rounded-full border px-3 py-1 text-xs ${
+                    transcriptMode === "paste" ? "border-white bg-white text-black" : "border-white/15 text-neutral-300 hover:border-white/40"
+                  }`}
+                >
+                  Paste text
+                </button>
+              </div>
+
+              {transcriptMode === "upload" ? (
+                transcriptFile ? (
+                  <div className="flex items-center justify-between rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+                    <span className="truncate text-xs text-neutral-300">{transcriptFile.name}</span>
+                    <div className="flex shrink-0 gap-2">
+                      <button onClick={() => transcriptInputRef.current?.click()} className="text-xs text-[#a993ff] hover:underline">
+                        Replace
+                      </button>
+                      <button onClick={() => setTranscriptFile(null)} className="text-xs text-neutral-500 hover:text-red-400">
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div
+                    onClick={() => transcriptInputRef.current?.click()}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      const f = e.dataTransfer.files?.[0];
+                      if (f) setTranscriptFile(f);
+                    }}
+                    className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-white/15 p-6 text-center hover:border-white/30"
+                  >
+                    <p className="text-xs text-neutral-400">Drop an .srt file here, or click to browse</p>
+                  </div>
+                )
+              ) : (
+                <div>
+                  <textarea
+                    value={transcriptText}
+                    onChange={(e) => setTranscriptText(e.target.value)}
+                    rows={6}
+                    placeholder={"(0:00) Ok, I am going to test this video. (0:04) Lets see how it works.\n\nOr paste real SRT format — both work."}
+                    className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-white placeholder:text-neutral-600 focus:border-white/40 focus:outline-none"
+                  />
+                  <p className="mt-1.5 text-[10px] text-neutral-600">
+                    Add a <code className="rounded bg-white/10 px-1 py-0.5">(0:04)</code> timestamp before each sentence, or paste SRT-formatted text directly.
+                  </p>
                 </div>
               )}
               <input
@@ -254,8 +294,8 @@ export default function ProjectSetupPage() {
               {isProcessing ? "Processing…" : "Create Editing Project →"}
             </button>
             <p className="mt-2 text-[10px] text-neutral-600">
-              {transcriptFile
-                ? "Using your uploaded transcript — Whisper is skipped."
+              {(transcriptMode === "upload" && transcriptFile) || (transcriptMode === "paste" && transcriptText.trim())
+                ? "Using your transcript — Whisper is skipped."
                 : "We'll transcribe your speech, segment the person from the background, and render animated captions automatically."}
             </p>
           </aside>
