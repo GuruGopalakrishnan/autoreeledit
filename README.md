@@ -37,4 +37,6 @@ This is being built in phases:
 - [x] **Phase 2** — Style Gallery: 10 selectable presets with live animated preview cards, Auto-switch toggle
 - [x] **Phase 3** — Timeline editor: caption timeline (click to seek/select), Caption Inspector (edit text, force/clear Dramatic), export
 - [x] **Phase 4** — Subject Mask & Track: hand tracking (avoids captions overlapping hands), mask edge outline, text-behind-subject compositing
-- [ ] Title Moments gallery (starburst, cutout title, black pause, before/after)
+- [x] **Phase 5** — Title Moments: apply Starburst / Cutout Title / Black Pause to one specific caption from the Caption Inspector, overriding the auto-triggers for just that moment
+
+All five roadmap phases are done. Ideas for what's next: a real "before/after" comparison view in the editor, more Title Moment presets, batch-applying a moment to multiple captions at once.
