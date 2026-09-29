@@ -46,10 +46,28 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 CONFIG_PATH = BASE_DIR / "config.json"
 
-# Reserved preset names: only ever applied automatically by the rule-based
-# trigger (keyword -> Dramatic, fast speech -> Energetic), never offered as
-# a user-selectable base style in the gallery.
-RESERVED_STYLE_NAMES = {"dramatic", "energetic"}
+# Reserved preset names: excluded from the Style Gallery / base_style choices
+# -- either auto-trigger-only (Dramatic, Energetic), or a Title Moment meant
+# for one specific caption via the Caption Inspector, not the whole video.
+# Still fully usable as a titleMoment (see _valid_base_styles() callers) and
+# still returned by /api/title-moments.
+RESERVED_STYLE_NAMES = {
+    "dramatic",
+    "energetic",
+    "cutout-title",
+    "black-pause",
+    "starburst-moment",
+    "spotlight-reveal",
+    "flash-hit",
+    "confetti-pop",
+    "glitch-cut",
+    "neon-frame",
+    "zoom-punch",
+    "color-pop",
+    "ribbon-banner",
+    "shake-impact",
+    "vignette-focus",
+}
 
 app = FastAPI(title="autoreel")
 
