@@ -34,7 +34,7 @@ Open `http://localhost:3000`, upload a video, pick a style, and watch it process
 This is being built in phases:
 
 - [x] **Phase 1** — Project Setup: upload, style pick, auto-prepare, result preview/download
-- [ ] Style Gallery with live animated previews
+- [x] **Phase 2** — Style Gallery: 10 selectable presets with live animated preview cards, Auto-switch toggle
 - [ ] Full timeline editor (transcript/caption/keyword/animation tracks, Caption Inspector panel)
 - [ ] Subject Mask & Track panel (hand tracking, "text behind subject" compositing)
 - [ ] Title Moments gallery (starburst, cutout title, black pause, before/after)
