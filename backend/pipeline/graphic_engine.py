@@ -44,6 +44,18 @@ def draw_pill_badge(text_width: int, text_height: int, color: str, padding: int 
     return img
 
 
+def draw_corporate_bar(text_width: int, text_height: int, color: str, accent_color: str, padding: int = 24, accent_width: int = 10) -> Image.Image:
+    """A sharp-cornered lower-third bar with a bright accent stripe down the
+    left edge -- the classic 'corporate lower third' look (a flat color bar,
+    not a rounded pill)."""
+    w, h = max(1, text_width + padding * 2 + accent_width), max(1, text_height + padding)
+    img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    draw.rounded_rectangle([(0, 0), (w - 1, h - 1)], radius=6, fill=_hex_to_rgba(color, 255))
+    draw.rectangle([(0, 0), (accent_width, h - 1)], fill=_hex_to_rgba(accent_color, 255))
+    return img
+
+
 def draw_dotted_line(length: int, color: str, dot_radius: int = 3, gap: int = 10, vertical: bool = True) -> Image.Image:
     """A vertical (or horizontal) dotted divider, `length` px long."""
     length = max(1, length)

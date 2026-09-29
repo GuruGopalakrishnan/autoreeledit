@@ -27,6 +27,18 @@
       "text_glow": true,
       "blink_cursor": true
     },
+    "corporate-lower-third": {
+      "font": "assets/fonts/Anton-Regular.ttf",
+      "font_size": 50,
+      "color": "#FFFFFF",
+      "outline_color": null,
+      "outline_width": 0,
+      "bg_color": "#2E3192",
+      "position": "lower_third",
+      "animation": "slide_in",
+      "corporate_bar": true,
+      "accent_color": "#00D4FF"
+    },
     "cutout-title": {
       "font": "assets/fonts/Anton-Regular.ttf",
       "font_size": 90,

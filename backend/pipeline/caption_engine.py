@@ -6,7 +6,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
-from .graphic_engine import draw_pill_badge, draw_ribbon_bar
+from .graphic_engine import draw_corporate_bar, draw_pill_badge, draw_ribbon_bar
 
 # Bundled multi-script fallback: whichever style font is active, a Tamil
 # word still needs an actual Tamil-capable font or it renders as tofu boxes
@@ -55,6 +55,9 @@ class StyleConfig:
     # Typewriter + Glow (recreates the "Simple Typewriter Animation" MOGRT look natively).
     text_glow: bool = False  # soft blurred halo behind the typewriter text
     blink_cursor: bool = False  # blinking "|" cursor after the currently-typed text
+    # Corporate Lower Third (recreates the "Corporate Lower Thirds" MOGRT look natively).
+    corporate_bar: bool = False  # sharp-cornered bar with a left accent stripe, instead of a rounded pill
+    accent_color: str = "#00D4FF"
 
 
 _FONT_CACHE: dict[tuple[str, int], ImageFont.FreeTypeFont] = {}
@@ -215,7 +218,10 @@ def render_caption_frame(
     tw = int(max(line_widths))
     th = int(len(lines) * line_height)
 
-    if style.bg_color:
+    if style.bg_color and style.corporate_bar:
+        badge = draw_corporate_bar(tw, th, style.bg_color, style.accent_color)
+        canvas.alpha_composite(badge, (frame_w // 2 - badge.width // 2, frame_h // 2 - badge.height // 2))
+    elif style.bg_color:
         badge = draw_pill_badge(tw, th, style.bg_color)
         canvas.alpha_composite(badge, (frame_w // 2 - badge.width // 2, frame_h // 2 - badge.height // 2))
 
