@@ -1,0 +1,10 @@
+openai-whisper
+mediapipe
+Pillow
+numpy
+tqdm
+ffmpeg-python
+torch
+fastapi
+uvicorn[standard]
+python-multipart

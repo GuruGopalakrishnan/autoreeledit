@@ -1,0 +1,19 @@
+# Python backend
+backend/.venv/
+backend/__pycache__/
+backend/pipeline/__pycache__/
+backend/*.pyc
+backend/data/
+backend/assets/fonts/*.ttf
+backend/assets/fonts/*.otf
+backend/assets/models/*.tflite
+backend/assets/models/*.task
+*.transcript.json
+
+# Next.js frontend
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.env*.local
+
+.DS_Store

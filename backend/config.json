@@ -1,0 +1,58 @@
+{
+  "background_color": "#F0F0F0",
+  "person_mode": "color",
+  "bg_mode": "solid",
+  "default_style": "casual",
+  "keyword_list": ["energy", "important", "listen", "wait", "but", "however", "secret", "never", "huge", "crazy", "insane", "best", "worst", "mistake", "free", "results", "proof", "shocking"],
+  "energetic_word_count": 5,
+  "dramatic_hold_seconds": 2.0,
+  "whisper_model": "base",
+  "ffmpeg_path": "ffmpeg",
+  "process_width": 1280,
+  "process_height": 720,
+  "output_width": 1080,
+  "output_height": 1920,
+  "fps": 30,
+  "styles": {
+    "casual": {
+      "font": "assets/fonts/Montserrat-SemiBold.ttf",
+      "font_size": 40,
+      "color": "#FFFFFF",
+      "outline_color": "#000000",
+      "outline_width": 3,
+      "bg_color": null,
+      "position": "lower_third",
+      "animation": "word_fade_in"
+    },
+    "dramatic": {
+      "font": "assets/fonts/AntonSC-Regular.ttf",
+      "font_size": 120,
+      "color": "#FF0000",
+      "outline_color": "#000000",
+      "outline_width": 4,
+      "bg_color": null,
+      "position": "beside_person",
+      "animation": "scale_punch_in"
+    },
+    "energetic": {
+      "font": "assets/fonts/Montserrat-Italic.ttf",
+      "font_size": 60,
+      "color": "#CCFF00",
+      "outline_color": "#000000",
+      "outline_width": 2,
+      "bg_color": "#FF6B00",
+      "position": "dynamic",
+      "animation": "slide_in"
+    },
+    "minimal": {
+      "font": "assets/fonts/Montserrat-Thin.ttf",
+      "font_size": 30,
+      "color": "#CCCCCC",
+      "outline_color": null,
+      "outline_width": 0,
+      "bg_color": null,
+      "position": "top",
+      "animation": "typewriter"
+    }
+  }
+}
