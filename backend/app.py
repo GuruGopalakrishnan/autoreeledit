@@ -91,7 +91,7 @@ async def list_styles():
     """The Style Gallery's data source: every non-reserved preset in config.json, with enough of its look (font/color/animation/etc) for the frontend to render a live preview card."""
     config = _load_config()
     styles = [{"id": name, **cfg} for name, cfg in config["styles"].items() if name not in RESERVED_STYLE_NAMES]
-    return {"styles": styles, "defaultStyle": config.get("default_style", "clean-white")}
+    return {"styles": styles, "defaultStyle": config.get("default_style", "typewriter-glow")}
 
 
 @app.get("/api/title-moments")
@@ -141,7 +141,7 @@ def _run_job(
 @app.post("/api/jobs")
 async def create_job(
     video: UploadFile = File(...),
-    base_style: str = Form("clean-white"),
+    base_style: str = Form("typewriter-glow"),
     auto_mode: bool = Form(True),
     transcript: UploadFile | None = File(None),
 ):
@@ -319,7 +319,7 @@ def _run_project_render(job_id: str, project: dict, output_path: Path, base_styl
 
 @app.post("/api/projects/{project_id}/render")
 async def render_project(
-    project_id: str, base_style: str = Form("clean-white"), auto_mode: bool = Form(True), track_hands: bool = Form(True)
+    project_id: str, base_style: str = Form("typewriter-glow"), auto_mode: bool = Form(True), track_hands: bool = Form(True)
 ):
     project = project_store.get_project(project_id)
     if not project:

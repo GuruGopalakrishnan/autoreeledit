@@ -6,16 +6,7 @@ import type { StylePreset } from "@/lib/api";
 const SAMPLE_TEXT = "Create Better Content";
 
 const NAME_OVERRIDES: Record<string, string> = {
-  "clean-white": "Clean White",
-  "yellow-pop": "Yellow Pop",
-  "green-highlight": "Green Highlight",
-  "bold-outline": "Bold Outline",
-  "neon-glow": "Neon Glow",
-  "minimal-thin": "Minimal",
-  "big-word": "Big Word",
-  "highlight-bar": "Highlight Bar",
-  "retro-warm": "Retro Warm",
-  "electric-blue": "Electric Blue",
+  "typewriter-glow": "Typewriter Glow",
 };
 
 function PreviewCard({ preset, selected, onSelect }: { preset: StylePreset; selected: boolean; onSelect: () => void }) {

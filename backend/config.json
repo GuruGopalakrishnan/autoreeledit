@@ -2,7 +2,7 @@
   "background_color": "#F0F0F0",
   "person_mode": "color",
   "bg_mode": "original",
-  "default_style": "clean-white",
+  "default_style": "typewriter-glow",
   "keyword_list": ["energy", "important", "listen", "wait", "but", "however", "secret", "never", "huge", "crazy", "insane", "best", "worst", "mistake", "free", "results", "proof", "shocking"],
   "energetic_word_count": 5,
   "dramatic_hold_seconds": 2.0,
@@ -15,105 +15,17 @@
   "output_height": 1920,
   "fps": 30,
   "styles": {
-    "clean-white": {
+    "typewriter-glow": {
       "font": "assets/fonts/Montserrat-Variable.ttf",
-      "font_size": 44,
+      "font_size": 46,
       "color": "#FFFFFF",
-      "outline_color": "#000000",
-      "outline_width": 3,
-      "bg_color": null,
-      "position": "lower_third",
-      "animation": "word_fade_in"
-    },
-    "yellow-pop": {
-      "font": "assets/fonts/Montserrat-Variable.ttf",
-      "font_size": 48,
-      "color": "#FFD400",
-      "outline_color": "#000000",
-      "outline_width": 3,
-      "bg_color": null,
-      "position": "lower_third",
-      "animation": "scale_punch_in"
-    },
-    "green-highlight": {
-      "font": "assets/fonts/Montserrat-Variable.ttf",
-      "font_size": 42,
-      "color": "#FFFFFF",
-      "outline_color": null,
-      "outline_width": 0,
-      "bg_color": "#1FAA59",
-      "position": "lower_third",
-      "animation": "slide_in"
-    },
-    "bold-outline": {
-      "font": "assets/fonts/Anton-Regular.ttf",
-      "font_size": 56,
-      "color": "#FFFFFF",
-      "outline_color": "#000000",
-      "outline_width": 5,
-      "bg_color": null,
-      "position": "lower_third",
-      "animation": "scale_punch_in"
-    },
-    "neon-glow": {
-      "font": "assets/fonts/Montserrat-Variable.ttf",
-      "font_size": 44,
-      "color": "#39FF14",
-      "outline_color": null,
-      "outline_width": 0,
-      "bg_color": "#111111",
-      "position": "lower_third",
-      "animation": "slide_in"
-    },
-    "minimal-thin": {
-      "font": "assets/fonts/Montserrat-Variable.ttf",
-      "font_size": 32,
-      "color": "#CCCCCC",
       "outline_color": null,
       "outline_width": 0,
       "bg_color": null,
       "position": "top",
-      "animation": "typewriter"
-    },
-    "big-word": {
-      "font": "assets/fonts/Anton-Regular.ttf",
-      "font_size": 72,
-      "color": "#FF3B3B",
-      "outline_color": "#000000",
-      "outline_width": 4,
-      "bg_color": null,
-      "position": "center",
-      "animation": "scale_punch_in"
-    },
-    "highlight-bar": {
-      "font": "assets/fonts/Montserrat-Variable.ttf",
-      "font_size": 40,
-      "color": "#111111",
-      "outline_color": null,
-      "outline_width": 0,
-      "bg_color": "#FFD400",
-      "position": "lower_third",
-      "animation": "word_fade_in"
-    },
-    "retro-warm": {
-      "font": "assets/fonts/Montserrat-Italic-Variable.ttf",
-      "font_size": 44,
-      "color": "#FDF3E3",
-      "outline_color": "#8A3B12",
-      "outline_width": 2,
-      "bg_color": null,
-      "position": "lower_third",
-      "animation": "slide_in"
-    },
-    "electric-blue": {
-      "font": "assets/fonts/Anton-Regular.ttf",
-      "font_size": 50,
-      "color": "#00D4FF",
-      "outline_color": "#00263A",
-      "outline_width": 3,
-      "bg_color": null,
-      "position": "top",
-      "animation": "scale_punch_in"
+      "animation": "typewriter",
+      "text_glow": true,
+      "blink_cursor": true
     },
     "cutout-title": {
       "font": "assets/fonts/Anton-Regular.ttf",

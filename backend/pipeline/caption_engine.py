@@ -4,7 +4,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 from .graphic_engine import draw_pill_badge, draw_ribbon_bar
 
@@ -52,6 +52,9 @@ class StyleConfig:
     ribbon_bar: bool = False  # full-width color bar that wipes in behind the text, like a news chyron
     shake_moment: bool = False  # frame jitter that decays over the first ~0.35s
     vignette_moment: bool = False  # strong dark vignette at the frame edges
+    # Typewriter + Glow (recreates the "Simple Typewriter Animation" MOGRT look natively).
+    text_glow: bool = False  # soft blurred halo behind the typewriter text
+    blink_cursor: bool = False  # blinking "|" cursor after the currently-typed text
 
 
 _FONT_CACHE: dict[tuple[str, int], ImageFont.FreeTypeFont] = {}
@@ -149,14 +152,37 @@ def render_caption_frame(
         font = _font_for_text(text, style.font, style.font_size)
         bbox = draw.textbbox((0, 0), text, font=font, stroke_width=style.outline_width)
         tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+        # Drawn vertically centered on this canvas -- not at its final
+        # on-screen position -- so the compositor's anchor-shift math (which
+        # assumes every branch centers its output the same way the
+        # word-by-word branch below does) repositions it correctly instead
+        # of shifting it off-frame.
+        x0, y0 = frame_w // 2 - tw // 2, frame_h // 2 - th // 2
+
+        if style.text_glow:
+            # Soft blurred halo behind the sharp text -- draw the same text
+            # on its own layer, blur it, then composite it underneath.
+            glow_layer = Image.new("RGBA", (frame_w, frame_h), (0, 0, 0, 0))
+            ImageDraw.Draw(glow_layer).text((x0, y0), text, font=font, fill=_hex_to_rgba(style.color, 210))
+            glow_layer = glow_layer.filter(ImageFilter.GaussianBlur(radius=max(4, style.font_size // 9)))
+            canvas.alpha_composite(glow_layer)
+
         draw.text(
-            (frame_w // 2 - tw // 2, int(frame_h * 0.08)),
+            (x0, y0),
             text,
             font=font,
             fill=_hex_to_rgba(style.color),
             stroke_width=style.outline_width,
             stroke_fill=outline_fill,
         )
+
+        if style.blink_cursor and int(current_time * 2) % 2 == 0:
+            cursor_w = max(2, style.font_size // 18)
+            cursor_gap = int(style.font_size * 0.12)
+            cx = x0 + tw + cursor_gap
+            draw.rectangle([(cx, y0), (cx + cursor_w, y0 + th)], fill=_hex_to_rgba(style.color))
+            tw += cursor_gap + cursor_w
+
         return canvas, tw, th
 
     # Word-by-word layout: each word gets its own font (Tamil words fall

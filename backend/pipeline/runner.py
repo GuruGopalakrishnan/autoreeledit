@@ -34,7 +34,7 @@ def run_pipeline(
     input_path: str,
     output_path: str,
     config: dict,
-    base_style: str = "clean-white",
+    base_style: str = "typewriter-glow",
     auto_mode: bool = True,
     cache_transcript: bool = False,
     transcript_srt_path: str | None = None,
