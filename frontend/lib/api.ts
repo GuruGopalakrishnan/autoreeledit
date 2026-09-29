@@ -11,10 +11,11 @@ export type Job = {
 
 export type Style = "auto" | "casual" | "dramatic" | "energetic" | "minimal";
 
-export async function createJob(video: File, style: Style): Promise<{ jobId: string }> {
+export async function createJob(video: File, style: Style, transcript?: File | null): Promise<{ jobId: string }> {
   const formData = new FormData();
   formData.append("video", video);
   formData.append("style", style);
+  if (transcript) formData.append("transcript", transcript);
   const res = await fetch(`${API_BASE}/api/jobs`, { method: "POST", body: formData });
   const data = await res.json();
   if (!res.ok) throw new Error(data.detail || "Failed to start the job.");

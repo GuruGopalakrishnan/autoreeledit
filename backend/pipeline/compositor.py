@@ -40,12 +40,21 @@ def _pick_style(t: float, words: list[dict], config: dict) -> str:
 
 def _active_words_for_style(t: float, words: list[dict], style: str, config: dict) -> list[dict]:
     """The word window a given style should currently show: dramatic shows
-    just its triggering keyword; the others show a trailing ~4s phrase
-    window so word-by-word animations have something to animate in before
-    the caption clears."""
+    just its triggering keyword. For the others, words carrying a `cue_id`
+    (from a user-supplied SRT transcript) show exactly their own cue's
+    words -- the cue boundaries are already human-chosen phrase breaks, so
+    that reads far better than an arbitrary sliding time window that can
+    straddle two unrelated cues and overflow the frame. Whisper-sourced
+    words have no cue_id, so they fall back to a trailing ~4s window."""
     if style == "dramatic":
         hold = config.get("dramatic_hold_seconds", 2.0)
         return [w for w in words if w["is_keyword"] and w["start"] <= t <= w["end"] + hold]
+
+    spoken = [w for w in words if w["start"] <= t]
+    if spoken and "cue_id" in spoken[-1]:
+        current_cue = spoken[-1]["cue_id"]
+        return [w for w in words if w.get("cue_id") == current_cue]
+
     window = 4.0
     return [w for w in words if t - window <= w["start"] <= t and w["end"] >= t - window]
 

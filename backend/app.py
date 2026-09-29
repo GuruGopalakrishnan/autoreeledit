@@ -49,7 +49,7 @@ def _set_job(job_id: str, **patch) -> None:
             _jobs[job_id].update(patch)
 
 
-def _run_job(job_id: str, input_path: Path, output_path: Path, style: str) -> None:
+def _run_job(job_id: str, input_path: Path, output_path: Path, style: str, transcript_path: Path | None) -> None:
     config = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
     try:
 
@@ -60,7 +60,15 @@ def _run_job(job_id: str, input_path: Path, output_path: Path, style: str) -> No
             pct = int(done / total * 100) if total else 0
             _set_job(job_id, progress=pct)
 
-        run_pipeline(str(input_path), str(output_path), config, style=style, on_stage=on_stage, on_progress=on_progress)
+        run_pipeline(
+            str(input_path),
+            str(output_path),
+            config,
+            style=style,
+            transcript_srt_path=str(transcript_path) if transcript_path else None,
+            on_stage=on_stage,
+            on_progress=on_progress,
+        )
         _set_job(job_id, status="done", progress=100)
     except PipelineError as e:
         _set_job(job_id, status="failed", error=str(e))
@@ -69,7 +77,11 @@ def _run_job(job_id: str, input_path: Path, output_path: Path, style: str) -> No
 
 
 @app.post("/api/jobs")
-async def create_job(video: UploadFile = File(...), style: str = Form("auto")):
+async def create_job(
+    video: UploadFile = File(...),
+    style: str = Form("auto"),
+    transcript: UploadFile | None = File(None),
+):
     valid_styles = {"auto", "casual", "dramatic", "energetic", "minimal"}
     if style not in valid_styles:
         raise HTTPException(400, f"style must be one of {sorted(valid_styles)}")
@@ -77,15 +89,21 @@ async def create_job(video: UploadFile = File(...), style: str = Form("auto")):
     job_id = uuid.uuid4().hex
     ext = Path(video.filename or "input.mp4").suffix or ".mp4"
     input_path = UPLOAD_DIR / f"{job_id}{ext}"
-    output_path = OUTPUT_DIR / f"{job_id}.mp4"
-
     with input_path.open("wb") as f:
         shutil.copyfileobj(video.file, f)
+
+    transcript_path: Path | None = None
+    if transcript is not None and transcript.filename:
+        transcript_path = UPLOAD_DIR / f"{job_id}.srt"
+        with transcript_path.open("wb") as f:
+            shutil.copyfileobj(transcript.file, f)
+
+    output_path = OUTPUT_DIR / f"{job_id}.mp4"
 
     with _jobs_lock:
         _jobs[job_id] = {"status": "queued", "progress": 0, "error": None}
 
-    thread = threading.Thread(target=_run_job, args=(job_id, input_path, output_path, style), daemon=True)
+    thread = threading.Thread(target=_run_job, args=(job_id, input_path, output_path, style, transcript_path), daemon=True)
     thread.start()
 
     return {"jobId": job_id}

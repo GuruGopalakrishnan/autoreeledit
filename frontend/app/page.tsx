@@ -14,7 +14,7 @@ const STYLES: { value: Style; label: string; description: string }[] = [
 
 const STATUS_LABEL: Record<string, string> = {
   queued: "Queued…",
-  transcribing: "Transcribing speech (Whisper)…",
+  transcribing: "Reading transcript…",
   rendering: "Rendering (person segmentation + captions)…",
   done: "Done",
   failed: "Failed",
@@ -23,12 +23,14 @@ const STATUS_LABEL: Record<string, string> = {
 export default function ProjectSetupPage() {
   const [file, setFile] = useState<File | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [transcriptFile, setTranscriptFile] = useState<File | null>(null);
   const [style, setStyle] = useState<Style>("auto");
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [job, setJob] = useState<Job | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const transcriptInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     return () => {
@@ -65,7 +67,7 @@ export default function ProjectSetupPage() {
     setStarting(true);
     setError(null);
     try {
-      const { jobId } = await createJob(file, style);
+      const { jobId } = await createJob(file, style, transcriptFile);
       setJob({ jobId, status: "queued", progress: 0, error: null });
       pollJob(jobId);
     } catch (e) {
@@ -73,7 +75,7 @@ export default function ProjectSetupPage() {
     } finally {
       setStarting(false);
     }
-  }, [file, style, pollJob]);
+  }, [file, style, transcriptFile, pollJob]);
 
   const isProcessing = job && job.status !== "done" && job.status !== "failed";
 
@@ -131,6 +133,53 @@ export default function ProjectSetupPage() {
                 onChange={(e) => {
                   const f = e.target.files?.[0];
                   if (f) onSelectFile(f);
+                }}
+              />
+            </section>
+
+            <section className="rounded-xl border border-white/10 bg-[#111117] p-5">
+              <div className="mb-3 flex items-center gap-2">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#7c5cfc] text-xs font-bold">2</span>
+                <h2 className="text-sm font-semibold">Upload timestamped transcript (optional)</h2>
+              </div>
+              <p className="mb-3 text-xs text-neutral-500">
+                Add an SRT file with timestamps. Skips Whisper entirely, so captions match your exact words. Without one, speech is auto-transcribed.
+              </p>
+
+              {transcriptFile ? (
+                <div className="flex items-center justify-between rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+                  <span className="truncate text-xs text-neutral-300">{transcriptFile.name}</span>
+                  <div className="flex shrink-0 gap-2">
+                    <button onClick={() => transcriptInputRef.current?.click()} className="text-xs text-[#a993ff] hover:underline">
+                      Replace
+                    </button>
+                    <button onClick={() => setTranscriptFile(null)} className="text-xs text-neutral-500 hover:text-red-400">
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div
+                  onClick={() => transcriptInputRef.current?.click()}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    const f = e.dataTransfer.files?.[0];
+                    if (f) setTranscriptFile(f);
+                  }}
+                  className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-white/15 p-6 text-center hover:border-white/30"
+                >
+                  <p className="text-xs text-neutral-400">Drop an .srt file here, or click to browse</p>
+                </div>
+              )}
+              <input
+                ref={transcriptInputRef}
+                type="file"
+                accept=".srt"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) setTranscriptFile(f);
                 }}
               />
             </section>
@@ -202,7 +251,9 @@ export default function ProjectSetupPage() {
               {isProcessing ? "Processing…" : "Create Editing Project →"}
             </button>
             <p className="mt-2 text-[10px] text-neutral-600">
-              We&apos;ll transcribe your speech, segment the person from the background, and render animated captions automatically.
+              {transcriptFile
+                ? "Using your uploaded transcript — Whisper is skipped."
+                : "We'll transcribe your speech, segment the person from the background, and render animated captions automatically."}
             </p>
           </aside>
         </div>

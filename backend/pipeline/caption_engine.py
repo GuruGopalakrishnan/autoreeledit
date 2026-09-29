@@ -1,10 +1,23 @@
 """Caption style templates and per-frame text rendering (Pillow)."""
 
+import re
 from dataclasses import dataclass
+from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
 from .graphic_engine import draw_pill_badge
+
+# Bundled multi-script fallback: whichever style font is active, a Tamil
+# word still needs an actual Tamil-capable font or it renders as tofu boxes
+# (Montserrat/Anton/etc. only cover Latin). Checked per word, not per line,
+# so Tanglish (mixed Tamil+English) captions render correctly either way.
+_TAMIL_RANGE = re.compile(r"[஀-௿]")
+_TAMIL_FONT_PATH = str(Path(__file__).resolve().parent.parent / "assets" / "fonts" / "NotoSansTamil-Variable.ttf")
+
+# A caption line wider than this fraction of the frame wraps onto a new line
+# instead of running off the edge.
+_MAX_LINE_WIDTH_RATIO = 0.88
 
 
 @dataclass
@@ -34,6 +47,11 @@ def _load_font(path: str, size: int) -> ImageFont.FreeTypeFont:
     return _FONT_CACHE[key]
 
 
+def _font_for_text(text: str, style_font_path: str, size: int) -> ImageFont.FreeTypeFont:
+    path = _TAMIL_FONT_PATH if _TAMIL_RANGE.search(text) else style_font_path
+    return _load_font(path, size)
+
+
 def _hex_to_rgba(hex_color: str, alpha: int = 255) -> tuple[int, int, int, int]:
     hex_color = hex_color.lstrip("#")
     r, g, b = int(hex_color[0:2], 16), int(hex_color[2:4], 16), int(hex_color[4:6], 16)
@@ -57,6 +75,24 @@ def _animation_progress(t: float, word_start: float, word_end: float, animation:
     return 1.0, 1.0
 
 
+def _wrap_into_lines(visible: list[dict], advances: list[float], max_width: float) -> list[list[int]]:
+    """Greedily groups word indices into lines so no line's total advance exceeds `max_width`."""
+    lines: list[list[int]] = []
+    current: list[int] = []
+    current_width = 0.0
+    for i in range(len(visible)):
+        w = advances[i]
+        if current and current_width + w > max_width:
+            lines.append(current)
+            current = []
+            current_width = 0.0
+        current.append(i)
+        current_width += w
+    if current:
+        lines.append(current)
+    return lines
+
+
 def render_caption_frame(
     words: list[dict],
     current_time: float,
@@ -72,9 +108,11 @@ def render_caption_frame(
     dimensions rather than this function knowing about anchors itself.
 
     `words` is the slice of the transcript relevant to this style's active
-    window (already filtered by the caller).
+    window (already filtered by the caller). Each word picks its own font
+    (see `_font_for_text`) so Tamil words render correctly even inside an
+    English-styled theme. Lines that would run wider than the frame wrap
+    automatically (see `_wrap_into_lines`).
     """
-    font = _load_font(style.font, style.font_size)
     canvas = Image.new("RGBA", (frame_w, frame_h), (0, 0, 0, 0))
     draw = ImageDraw.Draw(canvas)
 
@@ -86,6 +124,7 @@ def render_caption_frame(
 
     if style.animation == "typewriter":
         text = " ".join(w["text"] for w in visible)
+        font = _font_for_text(text, style.font, style.font_size)
         bbox = draw.textbbox((0, 0), text, font=font, stroke_width=style.outline_width)
         tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
         draw.text(
@@ -98,51 +137,78 @@ def render_caption_frame(
         )
         return canvas, tw, th
 
-    # Word-by-word layout: measure the full line first so we can center it,
-    # then draw each word with its own animation progress.
+    # Word-by-word layout: each word gets its own font (Tamil words fall
+    # back automatically), so line width is the sum of individual word
+    # advances rather than one textbbox call over the whole string.
+    #
+    # A style's configured font_size (e.g. Dramatic's 120px) can still be
+    # wider than the frame for a single long word, which wrapping alone
+    # can't fix (it only breaks *between* words) -- so shrink the font size
+    # to fit when even one line is too wide, rather than letting it run off
+    # both edges.
     spacer = " "
-    full_text = spacer.join(w["text"] for w in visible)
-    bbox = draw.textbbox((0, 0), full_text, font=font, stroke_width=style.outline_width)
-    tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+    max_line_width = frame_w * _MAX_LINE_WIDTH_RATIO
+    effective_size = style.font_size
+
+    for _ in range(4):
+        word_advances = []
+        for w in visible:
+            f = _font_for_text(w["text"], style.font, effective_size)
+            wb = draw.textbbox((0, 0), w["text"] + spacer, font=f, stroke_width=style.outline_width)
+            word_advances.append(wb[2] - wb[0])
+        lines = _wrap_into_lines(visible, word_advances, max_line_width)
+        widest = max(sum(word_advances[i] for i in line) for line in lines)
+        if widest <= max_line_width or effective_size <= 14:
+            break
+        effective_size = max(14, int(effective_size * max_line_width / widest * 0.97))
+
+    line_height = effective_size * 1.25 + style.outline_width * 2
+    line_widths = [sum(word_advances[i] for i in line) for line in lines]
+    tw = int(max(line_widths))
+    th = int(len(lines) * line_height)
 
     if style.bg_color:
         badge = draw_pill_badge(tw, th, style.bg_color)
         canvas.alpha_composite(badge, (frame_w // 2 - badge.width // 2, frame_h // 2 - badge.height // 2))
 
-    cursor_x = frame_w // 2 - tw // 2
-    baseline_y = frame_h // 2 - th // 2
+    block_top = frame_h // 2 - th // 2
 
-    for w in visible:
-        opacity, scale = _animation_progress(current_time, w["start"], w["end"], style.animation)
-        word_bbox = draw.textbbox((0, 0), w["text"] + spacer, font=font, stroke_width=style.outline_width)
-        word_advance = word_bbox[2] - word_bbox[0]
+    for line_index, (line, line_width) in enumerate(zip(lines, line_widths)):
+        cursor_x = frame_w // 2 - int(line_width) // 2
+        baseline_y = int(block_top + line_index * line_height)
 
-        if opacity <= 0:
-            cursor_x += word_advance
-            continue
+        for i in line:
+            w = visible[i]
+            word_advance = word_advances[i]
+            opacity, scale = _animation_progress(current_time, w["start"], w["end"], style.animation)
 
-        word_img = Image.new("RGBA", (frame_w, frame_h), (0, 0, 0, 0))
-        word_draw = ImageDraw.Draw(word_img)
-        color = _hex_to_rgba(style.color, int(255 * opacity))
-        word_outline = _hex_to_rgba(style.outline_color, int(255 * opacity)) if style.outline_color else None
-        word_draw.text(
-            (cursor_x, baseline_y),
-            w["text"],
-            font=font,
-            fill=color,
-            stroke_width=style.outline_width,
-            stroke_fill=word_outline,
-        )
+            if opacity <= 0:
+                cursor_x += int(word_advance)
+                continue
 
-        if scale != 1.0:
-            scaled_w, scaled_h = max(1, int(frame_w * scale)), max(1, int(frame_h * scale))
-            word_img = word_img.resize((scaled_w, scaled_h), Image.LANCZOS)
-            # Recenter after scaling so a punch-in shrinks toward its own
-            # center rather than the canvas corner, then crop back to frame size.
-            offset_x, offset_y = (scaled_w - frame_w) // 2, (scaled_h - frame_h) // 2
-            word_img = word_img.crop((offset_x, offset_y, offset_x + frame_w, offset_y + frame_h))
+            font = _font_for_text(w["text"], style.font, effective_size)
+            word_img = Image.new("RGBA", (frame_w, frame_h), (0, 0, 0, 0))
+            word_draw = ImageDraw.Draw(word_img)
+            color = _hex_to_rgba(style.color, int(255 * opacity))
+            word_outline = _hex_to_rgba(style.outline_color, int(255 * opacity)) if style.outline_color else None
+            word_draw.text(
+                (cursor_x, baseline_y),
+                w["text"],
+                font=font,
+                fill=color,
+                stroke_width=style.outline_width,
+                stroke_fill=word_outline,
+            )
 
-        canvas.alpha_composite(word_img)
-        cursor_x += word_advance
+            if scale != 1.0:
+                scaled_w, scaled_h = max(1, int(frame_w * scale)), max(1, int(frame_h * scale))
+                word_img = word_img.resize((scaled_w, scaled_h), Image.LANCZOS)
+                # Recenter after scaling so a punch-in shrinks toward its own
+                # center rather than the canvas corner, then crop back to frame size.
+                offset_x, offset_y = (scaled_w - frame_w) // 2, (scaled_h - frame_h) // 2
+                word_img = word_img.crop((offset_x, offset_y, offset_x + frame_w, offset_y + frame_h))
+
+            canvas.alpha_composite(word_img)
+            cursor_x += int(word_advance)
 
     return canvas, tw, th

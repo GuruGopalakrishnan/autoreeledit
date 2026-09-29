@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Callable
 
 from .compositor import run_compositor
+from .srt_parser import load_words_from_srt
 from .transcriber import load_transcript, save_transcript, transcribe
 
 
@@ -17,38 +18,50 @@ def run_pipeline(
     config: dict,
     style: str = "auto",
     cache_transcript: bool = False,
+    transcript_srt_path: str | None = None,
     on_stage: Callable[[str], None] | None = None,
     on_progress: Callable[[int, int], None] | None = None,
 ) -> None:
     """
-    Transcribes `input_path` (or reuses a cached transcript) and renders the
-    styled, captioned video to `output_path`. `on_stage("transcribing" |
-    "rendering")` and `on_progress(frames_done, frames_total)` are optional
-    hooks for a caller that wants to report progress.
+    Renders the styled, captioned video to `output_path`. Word-level
+    timestamps come from `transcript_srt_path` when given (a user-supplied
+    SRT file -- skips Whisper entirely, since a real transcript beats ASR
+    guessing at it), otherwise from Whisper (transcribing `input_path`, or
+    reusing a cached transcript when `cache_transcript` is set).
+
+    `on_stage("transcribing" | "rendering")` and `on_progress(frames_done,
+    frames_total)` are optional hooks for a caller that wants to report
+    progress.
     """
     stage = on_stage or (lambda _stage: None)
 
     input_p = Path(input_path)
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
 
-    transcript_cache = input_p.with_suffix(".transcript.json")
     stage("transcribing")
-    if cache_transcript and transcript_cache.exists():
-        transcript = load_transcript(str(transcript_cache))
-    else:
+    if transcript_srt_path:
         try:
-            transcript = transcribe(
-                str(input_p),
-                model_name=config.get("whisper_model", "base"),
-                keyword_list=config.get("keyword_list", []),
-            )
-        except Exception as e:  # noqa: BLE001 -- normalized into PipelineError for callers
-            raise PipelineError(f"Transcription failed: {e}") from e
-        save_transcript(transcript, str(transcript_cache))
+            words = load_words_from_srt(transcript_srt_path, keyword_list=config.get("keyword_list", []))
+        except Exception as e:  # noqa: BLE001
+            raise PipelineError(f"Could not read the transcript file: {e}") from e
+    else:
+        transcript_cache = input_p.with_suffix(".transcript.json")
+        if cache_transcript and transcript_cache.exists():
+            transcript = load_transcript(str(transcript_cache))
+        else:
+            try:
+                transcript = transcribe(
+                    str(input_p),
+                    model_name=config.get("whisper_model", "base"),
+                    keyword_list=config.get("keyword_list", []),
+                )
+            except Exception as e:  # noqa: BLE001 -- normalized into PipelineError for callers
+                raise PipelineError(f"Transcription failed: {e}") from e
+            save_transcript(transcript, str(transcript_cache))
+        words = transcript["words"]
 
-    words = transcript["words"]
     if not words:
-        raise PipelineError("Transcription produced no words -- is there speech in this video?")
+        raise PipelineError("No words to caption -- is there speech in this video, or content in the transcript file?")
 
     effective_config = dict(config)
     if style != "auto":
