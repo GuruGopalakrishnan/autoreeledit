@@ -1,7 +1,7 @@
 {
   "background_color": "#F0F0F0",
   "person_mode": "color",
-  "bg_mode": "solid",
+  "bg_mode": "original",
   "default_style": "clean-white",
   "keyword_list": ["energy", "important", "listen", "wait", "but", "however", "secret", "never", "huge", "crazy", "insane", "best", "worst", "mistake", "free", "results", "proof", "shocking"],
   "energetic_word_count": 5,

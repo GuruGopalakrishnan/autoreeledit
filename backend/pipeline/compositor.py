@@ -78,14 +78,16 @@ def _build_layers(frame_bgr: np.ndarray, mask: np.ndarray, config: dict) -> tupl
     keeping them separate is what lets the caller put captions in between
     the two (Subject Mask & Track's "text behind subject").
     """
-    bg_mode = config.get("bg_mode", "solid")
+    bg_mode = config.get("bg_mode", "original")
     if bg_mode == "blur":
         background = cv2.GaussianBlur(frame_bgr, (55, 55), 0)
     elif bg_mode == "darken":
         background = (frame_bgr.astype(np.float32) * 0.35).astype(np.uint8)
-    else:  # solid
+    elif bg_mode == "solid":
         color = _hex_to_bgr(config.get("background_color", "#F0F0F0"))
         background = np.full_like(frame_bgr, color)
+    else:  # "original" -- keep the real filmed background untouched, exactly as shot
+        background = frame_bgr
 
     person_bgr = frame_bgr
     if config.get("person_mode") == "bw":
