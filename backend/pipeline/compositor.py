@@ -131,7 +131,7 @@ def run_compositor(
             analysis = segmenter.analyze(frame, timestamp_ms=int(t * 1000))
             style_name = _pick_style(t, words, config)
             style = styles[style_name]
-            layout = decide_layout(analysis, style_name, proc_w, proc_h)
+            layout = decide_layout(analysis, style.position, proc_w, proc_h)
 
             if layout.full_frame:
                 composited = np.full_like(frame, _hex_to_bgr(config.get("background_color", "#F0F0F0")))

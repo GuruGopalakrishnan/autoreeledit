@@ -13,17 +13,28 @@ class LayoutDecision:
     full_frame: bool  # True for a dramatic keyword moment: text takes over the whole frame
 
 
-def decide_layout(analysis: FrameAnalysis, style: str, frame_w: int, frame_h: int) -> LayoutDecision:
-    if style == "dramatic":
+def decide_layout(analysis: FrameAnalysis, position: str, frame_w: int, frame_h: int) -> LayoutDecision:
+    """
+    Keyed off the active style's own `position` config value, not the style's
+    name -- with a growing gallery of named presets, dispatching on name (the
+    old approach) meant every new preset silently fell into whichever
+    fallback branch existed, regardless of what position it was actually
+    configured for.
+    """
+    if position == "beside_person":
+        # Reserved for a full-frame takeover moment (e.g. the Dramatic preset).
         return LayoutDecision(text_anchor="center", full_frame=True)
 
-    if style == "minimal":
+    if position == "top":
         return LayoutDecision(text_anchor="top", full_frame=False)
 
-    if style == "casual":
+    if position == "lower_third":
         return LayoutDecision(text_anchor="lower_third", full_frame=False)
 
-    # energetic: dynamic -- opposite side from the person so it never sits on the face
+    if position == "center":
+        return LayoutDecision(text_anchor="center", full_frame=False)
+
+    # "dynamic" -- opposite side from the person so it never sits on the face
     if analysis.person_center_x_ratio > 0.55:
         anchor = "left"
     elif analysis.person_center_x_ratio < 0.45:

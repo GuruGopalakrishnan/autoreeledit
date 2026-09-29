@@ -16,7 +16,8 @@ def run_pipeline(
     input_path: str,
     output_path: str,
     config: dict,
-    style: str = "auto",
+    base_style: str = "clean-white",
+    auto_mode: bool = True,
     cache_transcript: bool = False,
     transcript_srt_path: str | None = None,
     on_stage: Callable[[str], None] | None = None,
@@ -28,6 +29,12 @@ def run_pipeline(
     SRT file -- skips Whisper entirely, since a real transcript beats ASR
     guessing at it), otherwise from Whisper (transcribing `input_path`, or
     reusing a cached transcript when `cache_transcript` is set).
+
+    `base_style` is the preset used for ordinary (non-triggered) captions --
+    any key in config.json's `styles` (see the Style Gallery). When
+    `auto_mode` is on (default), the rule-based Dramatic/Energetic triggers
+    still fire on top of that base for keyword moments and fast speech; off,
+    `base_style` is the only style that ever shows.
 
     `on_stage("transcribing" | "rendering")` and `on_progress(frames_done,
     frames_total)` are optional hooks for a caller that wants to report
@@ -64,13 +71,13 @@ def run_pipeline(
         raise PipelineError("No words to caption -- is there speech in this video, or content in the transcript file?")
 
     effective_config = dict(config)
-    if style != "auto":
-        # Force a single style: silence the auto-triggers (keyword -> dramatic,
-        # word-rate -> energetic) and make the chosen style the only one that ever fires.
-        effective_config["default_style"] = style
+    effective_config["default_style"] = base_style
+    if not auto_mode:
+        # Silence the auto-triggers (keyword -> Dramatic, word-rate -> Energetic)
+        # so base_style is the only style that ever fires.
         effective_config["energetic_word_count"] = 10**9
         for w in words:
-            w["is_keyword"] = style == "dramatic"
+            w["is_keyword"] = False
 
     stage("rendering")
     try:

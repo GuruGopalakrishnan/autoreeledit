@@ -27,6 +27,11 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 CONFIG_PATH = BASE_DIR / "config.json"
 
+# Reserved preset names: only ever applied automatically by the rule-based
+# trigger (keyword -> Dramatic, fast speech -> Energetic), never offered as
+# a user-selectable base style in the gallery.
+RESERVED_STYLE_NAMES = {"dramatic", "energetic"}
+
 app = FastAPI(title="autoreel")
 
 # The frontend runs on a different origin (Next.js dev server) during local
@@ -49,7 +54,9 @@ def _set_job(job_id: str, **patch) -> None:
             _jobs[job_id].update(patch)
 
 
-def _run_job(job_id: str, input_path: Path, output_path: Path, style: str, transcript_path: Path | None) -> None:
+def _run_job(
+    job_id: str, input_path: Path, output_path: Path, base_style: str, auto_mode: bool, transcript_path: Path | None
+) -> None:
     config = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
     try:
 
@@ -64,7 +71,8 @@ def _run_job(job_id: str, input_path: Path, output_path: Path, style: str, trans
             str(input_path),
             str(output_path),
             config,
-            style=style,
+            base_style=base_style,
+            auto_mode=auto_mode,
             transcript_srt_path=str(transcript_path) if transcript_path else None,
             on_stage=on_stage,
             on_progress=on_progress,
@@ -76,15 +84,29 @@ def _run_job(job_id: str, input_path: Path, output_path: Path, style: str, trans
         _set_job(job_id, status="failed", error=f"Unexpected error: {e}")
 
 
+@app.get("/api/styles")
+async def list_styles():
+    """The Style Gallery's data source: every non-reserved preset in config.json, with enough of its look (font/color/animation/etc) for the frontend to render a live preview card."""
+    config = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+    styles = []
+    for name, cfg in config["styles"].items():
+        if name in RESERVED_STYLE_NAMES:
+            continue
+        styles.append({"id": name, **cfg})
+    return {"styles": styles, "defaultStyle": config.get("default_style", "clean-white")}
+
+
 @app.post("/api/jobs")
 async def create_job(
     video: UploadFile = File(...),
-    style: str = Form("auto"),
+    base_style: str = Form("clean-white"),
+    auto_mode: bool = Form(True),
     transcript: UploadFile | None = File(None),
 ):
-    valid_styles = {"auto", "casual", "dramatic", "energetic", "minimal"}
-    if style not in valid_styles:
-        raise HTTPException(400, f"style must be one of {sorted(valid_styles)}")
+    config = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+    valid_base_styles = set(config["styles"].keys()) - RESERVED_STYLE_NAMES
+    if base_style not in valid_base_styles:
+        raise HTTPException(400, f"base_style must be one of {sorted(valid_base_styles)}")
 
     job_id = uuid.uuid4().hex
     ext = Path(video.filename or "input.mp4").suffix or ".mp4"
@@ -103,7 +125,9 @@ async def create_job(
     with _jobs_lock:
         _jobs[job_id] = {"status": "queued", "progress": 0, "error": None}
 
-    thread = threading.Thread(target=_run_job, args=(job_id, input_path, output_path, style, transcript_path), daemon=True)
+    thread = threading.Thread(
+        target=_run_job, args=(job_id, input_path, output_path, base_style, auto_mode, transcript_path), daemon=True
+    )
     thread.start()
 
     return {"jobId": job_id}

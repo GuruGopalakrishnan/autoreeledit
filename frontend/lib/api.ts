@@ -9,12 +9,36 @@ export type Job = {
   error: string | null;
 };
 
-export type Style = "auto" | "casual" | "dramatic" | "energetic" | "minimal";
+// Mirrors backend/pipeline/caption_engine.py's StyleConfig -- one entry per
+// non-reserved preset in config.json's `styles`.
+export type StylePreset = {
+  id: string;
+  font: string;
+  font_size: number;
+  color: string;
+  outline_color: string | null;
+  outline_width: number;
+  bg_color: string | null;
+  position: string;
+  animation: "word_fade_in" | "scale_punch_in" | "slide_in" | "typewriter";
+};
 
-export async function createJob(video: File, style: Style, transcript?: File | null): Promise<{ jobId: string }> {
+export async function getStyles(): Promise<{ styles: StylePreset[]; defaultStyle: string }> {
+  const res = await fetch(`${API_BASE}/api/styles`);
+  if (!res.ok) throw new Error("Failed to load style presets.");
+  return res.json();
+}
+
+export async function createJob(
+  video: File,
+  baseStyle: string,
+  autoMode: boolean,
+  transcript?: File | null
+): Promise<{ jobId: string }> {
   const formData = new FormData();
   formData.append("video", video);
-  formData.append("style", style);
+  formData.append("base_style", baseStyle);
+  formData.append("auto_mode", String(autoMode));
   if (transcript) formData.append("transcript", transcript);
   const res = await fetch(`${API_BASE}/api/jobs`, { method: "POST", body: formData });
   const data = await res.json();
