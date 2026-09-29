@@ -123,10 +123,16 @@ export async function updateCaption(
   return data;
 }
 
-export async function renderProject(projectId: string, baseStyle: string, autoMode: boolean): Promise<{ jobId: string }> {
+export async function renderProject(
+  projectId: string,
+  baseStyle: string,
+  autoMode: boolean,
+  trackHands: boolean = true
+): Promise<{ jobId: string }> {
   const formData = new FormData();
   formData.append("base_style", baseStyle);
   formData.append("auto_mode", String(autoMode));
+  formData.append("track_hands", String(trackHands));
   const res = await fetch(`${API_BASE}/api/projects/${projectId}/render`, { method: "POST", body: formData });
   const data = await res.json();
   if (!res.ok) throw new Error(data.detail || "Failed to start the render.");

@@ -4,6 +4,7 @@ backend/__pycache__/
 backend/pipeline/__pycache__/
 backend/*.pyc
 backend/data/
+backend/*.log
 backend/assets/fonts/*.ttf
 backend/assets/fonts/*.otf
 backend/assets/models/*.tflite

@@ -299,8 +299,9 @@ async def update_caption(project_id: str, cue_id: int, body: dict = Body(...)):
     return {"caption": updated}
 
 
-def _run_project_render(job_id: str, project: dict, output_path: Path, base_style: str, auto_mode: bool) -> None:
+def _run_project_render(job_id: str, project: dict, output_path: Path, base_style: str, auto_mode: bool, track_hands: bool) -> None:
     config = _load_config()
+    config["track_hands"] = track_hands
     try:
         words = [dict(w) for w in project["words"]]  # apply_style_choice may mutate is_keyword; don't touch the stored copy
         effective_config = apply_style_choice(config, words, base_style, auto_mode)
@@ -317,7 +318,9 @@ def _run_project_render(job_id: str, project: dict, output_path: Path, base_styl
 
 
 @app.post("/api/projects/{project_id}/render")
-async def render_project(project_id: str, base_style: str = Form("clean-white"), auto_mode: bool = Form(True)):
+async def render_project(
+    project_id: str, base_style: str = Form("clean-white"), auto_mode: bool = Form(True), track_hands: bool = Form(True)
+):
     project = project_store.get_project(project_id)
     if not project:
         raise HTTPException(404, "Project not found.")
@@ -335,7 +338,9 @@ async def render_project(project_id: str, base_style: str = Form("clean-white"),
     with _jobs_lock:
         _jobs[job_id] = {"status": "queued", "progress": 0, "error": None}
 
-    thread = threading.Thread(target=_run_project_render, args=(job_id, project, output_path, base_style, auto_mode), daemon=True)
+    thread = threading.Thread(
+        target=_run_project_render, args=(job_id, project, output_path, base_style, auto_mode, track_hands), daemon=True
+    )
     thread.start()
 
     return {"jobId": job_id}

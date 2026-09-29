@@ -40,6 +40,7 @@ export default function EditorPage() {
   const [titleMoments, setTitleMoments] = useState<StylePreset[]>([]);
   const [baseStyle, setBaseStyle] = useState<string | null>(null);
   const [autoMode, setAutoMode] = useState(true);
+  const [trackHands, setTrackHands] = useState(true);
   const [renderJob, setRenderJob] = useState<Job | null>(null);
   const [starting, setStarting] = useState(false);
 
@@ -130,7 +131,7 @@ export default function EditorPage() {
     setStarting(true);
     setError(null);
     try {
-      const { jobId } = await renderProject(projectId, baseStyle, autoMode);
+      const { jobId } = await renderProject(projectId, baseStyle, autoMode, trackHands);
       setRenderJob({ jobId, status: "queued", progress: 0, error: null });
       jobPollRef.current = setInterval(async () => {
         try {
@@ -148,7 +149,7 @@ export default function EditorPage() {
     } finally {
       setStarting(false);
     }
-  }, [projectId, baseStyle, autoMode]);
+  }, [projectId, baseStyle, autoMode, trackHands]);
 
   if (error && !project) {
     return <main className="flex min-h-screen items-center justify-center bg-[#0b0b0f] text-red-400">{error}</main>;
@@ -165,7 +166,7 @@ export default function EditorPage() {
 
   return (
     <div className="flex min-h-screen">
-      <Sidebar />
+      <Sidebar projectId={projectId} />
 
       <main className="flex-1 p-6">
         <div className="mb-6 flex items-center justify-between">
@@ -202,7 +203,7 @@ export default function EditorPage() {
             </section>
 
             {project.status === "ready" && (
-              <section className="rounded-xl border border-white/10 bg-[#111117] p-5">
+              <section id="section-style" className="rounded-xl border border-white/10 bg-[#111117] p-5">
                 <div className="mb-3 flex items-center justify-between">
                   <h2 className="text-sm font-semibold">Caption style</h2>
                   <label className="flex items-center gap-2 text-xs text-neutral-400">
@@ -211,6 +212,25 @@ export default function EditorPage() {
                   </label>
                 </div>
                 <StyleGallery presets={presets} selectedId={baseStyle} onSelect={setBaseStyle} />
+              </section>
+            )}
+
+            {project.status === "ready" && (
+              <section id="section-mask" className="rounded-xl border border-white/10 bg-[#111117] p-5">
+                <h2 className="mb-1 text-sm font-semibold">Subject Mask &amp; Track</h2>
+                <p className="mb-3 text-xs text-neutral-500">
+                  Person segmentation keeps captions from overlapping the speaker, and powers text-behind-subject styles
+                  like Cutout Title.
+                </p>
+                <label className="flex items-center justify-between rounded-lg border border-white/10 bg-black/20 px-3 py-2.5 text-xs text-neutral-300">
+                  <span>
+                    Track hands
+                    <span className="mt-0.5 block text-[10px] text-neutral-600">
+                      Keeps captions clear of detected hand positions. Turn off if hand tracking misfires on your footage.
+                    </span>
+                  </span>
+                  <input type="checkbox" checked={trackHands} onChange={(e) => setTrackHands(e.target.checked)} />
+                </label>
               </section>
             )}
 
@@ -256,7 +276,7 @@ export default function EditorPage() {
               onSelectTitleMoment={selectTitleMoment}
             />
 
-            <div className="rounded-xl border border-white/10 bg-[#111117] p-5">
+            <div id="section-export" className="rounded-xl border border-white/10 bg-[#111117] p-5">
               {error && <p className="mb-3 text-xs text-red-400">{error}</p>}
               <button
                 onClick={startRender}
