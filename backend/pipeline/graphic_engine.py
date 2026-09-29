@@ -56,6 +56,20 @@ def draw_corporate_bar(text_width: int, text_height: int, color: str, accent_col
     return img
 
 
+def draw_ribbon_tag(bar_width: int, bar_height: int, accent_color: str) -> Image.Image:
+    """A small folded-flag accent shape (rectangle with a triangular notch
+    cut from its right edge) meant to sit just under a name-plate bar --
+    the 'ribbon tag' flourish from broadcast-style name lower thirds."""
+    tag_w = max(1, int(bar_width * 0.42))
+    tag_h = max(1, int(bar_height * 0.55))
+    notch = tag_h // 2
+    img = Image.new("RGBA", (tag_w + notch, tag_h), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    points = [(0, 0), (tag_w, 0), (tag_w + notch, tag_h // 2), (tag_w, tag_h), (0, tag_h)]
+    draw.polygon(points, fill=_hex_to_rgba(accent_color, 255))
+    return img
+
+
 def draw_dotted_line(length: int, color: str, dot_radius: int = 3, gap: int = 10, vertical: bool = True) -> Image.Image:
     """A vertical (or horizontal) dotted divider, `length` px long."""
     length = max(1, length)

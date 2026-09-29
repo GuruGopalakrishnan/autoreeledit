@@ -8,6 +8,7 @@ const SAMPLE_TEXT = "Create Better Content";
 const NAME_OVERRIDES: Record<string, string> = {
   "typewriter-glow": "Typewriter Glow",
   "corporate-lower-third": "Corporate Lower Third",
+  "name-tag": "Name Tag",
 };
 
 function PreviewCard({ preset, selected, onSelect }: { preset: StylePreset; selected: boolean; onSelect: () => void }) {

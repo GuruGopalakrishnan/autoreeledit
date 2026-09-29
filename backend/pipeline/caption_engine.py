@@ -6,7 +6,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
-from .graphic_engine import draw_corporate_bar, draw_pill_badge, draw_ribbon_bar
+from .graphic_engine import draw_corporate_bar, draw_pill_badge, draw_ribbon_bar, draw_ribbon_tag
 
 # Bundled multi-script fallback: whichever style font is active, a Tamil
 # word still needs an actual Tamil-capable font or it renders as tofu boxes
@@ -58,6 +58,8 @@ class StyleConfig:
     # Corporate Lower Third (recreates the "Corporate Lower Thirds" MOGRT look natively).
     corporate_bar: bool = False  # sharp-cornered bar with a left accent stripe, instead of a rounded pill
     accent_color: str = "#00D4FF"
+    # Name Tag (recreates the "Design Lower Thirds" name-plate + ribbon-flag look natively).
+    ribbon_tag: bool = False  # small folded-flag accent shape attached under the bg_color bar
 
 
 _FONT_CACHE: dict[tuple[str, int], ImageFont.FreeTypeFont] = {}
@@ -220,10 +222,18 @@ def render_caption_frame(
 
     if style.bg_color and style.corporate_bar:
         badge = draw_corporate_bar(tw, th, style.bg_color, style.accent_color)
-        canvas.alpha_composite(badge, (frame_w // 2 - badge.width // 2, frame_h // 2 - badge.height // 2))
+        badge_x, badge_y = frame_w // 2 - badge.width // 2, frame_h // 2 - badge.height // 2
+        canvas.alpha_composite(badge, (badge_x, badge_y))
     elif style.bg_color:
         badge = draw_pill_badge(tw, th, style.bg_color)
-        canvas.alpha_composite(badge, (frame_w // 2 - badge.width // 2, frame_h // 2 - badge.height // 2))
+        badge_x, badge_y = frame_w // 2 - badge.width // 2, frame_h // 2 - badge.height // 2
+        canvas.alpha_composite(badge, (badge_x, badge_y))
+
+        if style.ribbon_tag:
+            # The folded-flag accent hangs just under the bar, overlapping
+            # its bottom-left corner, in the style's accent_color.
+            tag = draw_ribbon_tag(badge.width, badge.height, style.accent_color)
+            canvas.alpha_composite(tag, (badge_x + int(badge.width * 0.06), badge_y + badge.height - int(tag.height * 0.4)))
 
     if style.ribbon_bar:
         # Wipes in from the center over the moment's first 0.25s. Drawn on

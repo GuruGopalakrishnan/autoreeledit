@@ -39,6 +39,18 @@
       "corporate_bar": true,
       "accent_color": "#00D4FF"
     },
+    "name-tag": {
+      "font": "assets/fonts/Montserrat-Variable.ttf",
+      "font_size": 42,
+      "color": "#FFFFFF",
+      "outline_color": null,
+      "outline_width": 0,
+      "bg_color": "#8B5CF6",
+      "position": "lower_third",
+      "animation": "slide_in",
+      "ribbon_tag": true,
+      "accent_color": "#FFD400"
+    },
     "cutout-title": {
       "font": "assets/fonts/Anton-Regular.ttf",
       "font_size": 90,
