@@ -22,6 +22,11 @@ _CUE_RE = re.compile(
     re.MULTILINE,
 )
 _MARKER_RE = re.compile(r"\((?:(\d+):)?(\d{1,2}):(\d{2})\)")
+# Ported from beautiful-captions' speaker-diarization coloring
+# (aayushgupta16/beautiful-captions, MIT license): a transcript with
+# "Speaker A: ...", "Speaker B: ..." prefixes gets each speaker's words
+# tagged with a stable index, so a style can color them differently.
+_SPEAKER_RE = re.compile(r"^Speaker\s+([A-Za-z0-9]+):\s*(.*)$", re.IGNORECASE)
 
 
 def _time_to_seconds(t: str) -> float:
@@ -97,8 +102,17 @@ def cues_to_words(cues: list[dict], keyword_set: set[str]) -> list[dict]:
     working the same as it does with real Whisper timestamps.
     """
     words: list[dict] = []
+    speaker_order: dict[str, int] = {}
     for cue_id, cue in enumerate(cues):
-        tokens = cue["text"].split()
+        text = cue["text"]
+        speaker_index = None
+        m = _SPEAKER_RE.match(text)
+        if m:
+            label = m.group(1).upper()
+            text = m.group(2)
+            speaker_index = speaker_order.setdefault(label, len(speaker_order))
+
+        tokens = text.split()
         if not tokens:
             continue
         span = max(cue["end"] - cue["start"], 0.1)
@@ -110,7 +124,11 @@ def cues_to_words(cues: list[dict], keyword_set: set[str]) -> list[dict]:
             # cue_id lets the compositor show exactly this cue's words together
             # instead of an arbitrary sliding time window that can straddle
             # two unrelated cues and overflow the frame.
-            words.append({"text": token, "start": w_start, "end": w_end, "is_keyword": clean in keyword_set, "cue_id": cue_id})
+            words.append({
+                "text": token, "start": w_start, "end": w_end,
+                "is_keyword": clean in keyword_set, "cue_id": cue_id,
+                "speaker_index": speaker_index,
+            })
     return words
 
 

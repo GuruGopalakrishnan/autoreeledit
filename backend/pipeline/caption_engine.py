@@ -75,6 +75,11 @@ class StyleConfig:
     active_word_box: bool = False  # colored pill behind just the active word
     active_word_box_color: str | None = None  # falls back to active_word_color
     active_word_underline: bool = False  # underline that grows across the word's own spoken duration
+    # Speaker diarization colors (ported from beautiful-captions' speaker
+    # coloring): words carrying a speaker_index (see srt_parser.py's
+    # "Speaker A: " prefix detection) use a per-speaker color instead of the
+    # style's base color. None (the default) leaves every word on style.color.
+    speaker_colors: list[str] | None = None
 
 
 _FONT_CACHE: dict[tuple[str, int], ImageFont.FreeTypeFont] = {}
@@ -393,7 +398,9 @@ def render_caption_frame(
                 continue
 
             is_active_word = style.karaoke_highlight and w["start"] <= current_time <= w["end"]
-            effective_color = style.active_word_color if is_active_word else style.color
+            speaker_index = w.get("speaker_index")
+            base_color = style.speaker_colors[speaker_index % len(style.speaker_colors)] if style.speaker_colors and speaker_index is not None else style.color
+            effective_color = style.active_word_color if is_active_word else base_color
 
             font = _font_for_text(w["text"], style.font, effective_size)
             word_img = Image.new("RGBA", (frame_w, frame_h), (0, 0, 0, 0))

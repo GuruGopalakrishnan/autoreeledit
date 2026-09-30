@@ -140,6 +140,17 @@
       "active_word_color": "#B685FF",
       "active_word_underline": true
     },
+    "speaker-colors": {
+      "font": "assets/fonts/Montserrat-Variable.ttf",
+      "font_size": 44,
+      "color": "#FFFFFF",
+      "outline_color": "#000000",
+      "outline_width": 2,
+      "bg_color": null,
+      "position": "lower_third",
+      "animation": "word_fade_in",
+      "speaker_colors": ["#FFD400", "#00D4FF", "#FF6EC7"]
+    },
     "cutout-title": {
       "font": "assets/fonts/Anton-Regular.ttf",
       "font_size": 90,

@@ -17,6 +17,7 @@ const NAME_OVERRIDES: Record<string, string> = {
   "karaoke-highlight": "Karaoke Highlight",
   "popline-box": "PopLine Box",
   "flamingo-underline": "Flamingo Underline",
+  "speaker-colors": "Speaker Colors",
 };
 
 function PreviewCard({ preset, selected, onSelect }: { preset: StylePreset; selected: boolean; onSelect: () => void }) {
