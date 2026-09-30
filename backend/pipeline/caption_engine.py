@@ -80,6 +80,11 @@ class StyleConfig:
     # "Speaker A: " prefix detection) use a per-speaker color instead of the
     # style's base color. None (the default) leaves every word on style.color.
     speaker_colors: list[str] | None = None
+    # Karaoke color-wipe (ported from ai-video-captions' ASS \kf karaoke-fill
+    # tag): instead of an instant color swap, the active word fills from
+    # base color to active_word_color left-to-right across its own spoken
+    # duration -- a true wipe rather than a step change.
+    active_word_wipe: bool = False
 
 
 _FONT_CACHE: dict[tuple[str, int], ImageFont.FreeTypeFont] = {}
@@ -400,7 +405,10 @@ def render_caption_frame(
             is_active_word = style.karaoke_highlight and w["start"] <= current_time <= w["end"]
             speaker_index = w.get("speaker_index")
             base_color = style.speaker_colors[speaker_index % len(style.speaker_colors)] if style.speaker_colors and speaker_index is not None else style.color
-            effective_color = style.active_word_color if is_active_word else base_color
+            # Wipe mode draws the base color first and composites a cropped
+            # highlight-color copy on top afterward, so the initial draw must
+            # stay in base_color rather than jumping straight to the highlight.
+            effective_color = base_color if (is_active_word and style.active_word_wipe) else (style.active_word_color if is_active_word else base_color)
 
             font = _font_for_text(w["text"], style.font, effective_size)
             word_img = Image.new("RGBA", (frame_w, frame_h), (0, 0, 0, 0))
@@ -412,7 +420,7 @@ def render_caption_frame(
             if style.animation == "rise_up":
                 word_y += _rise_up_offset(current_time, w["start"], effective_size)
 
-            if is_active_word and (style.active_word_box or style.active_word_underline):
+            if is_active_word and (style.active_word_box or style.active_word_underline or style.active_word_wipe):
                 word_bbox = word_draw.textbbox((cursor_x, word_y), w["text"], font=font, stroke_width=style.outline_width)
 
             if is_active_word and style.active_word_box:
@@ -441,6 +449,24 @@ def render_caption_frame(
                     stroke_width=style.outline_width,
                     stroke_fill=word_outline,
                 )
+
+            if is_active_word and style.active_word_wipe:
+                # Fills left-to-right from base_color to active_word_color
+                # across the word's own spoken duration, like the ASS \kf
+                # karaoke tag -- draw a full highlight-color copy, then keep
+                # only its left `progress` fraction.
+                word_duration = max(0.05, w["end"] - w["start"])
+                wipe_progress = min(1.0, (current_time - w["start"]) / word_duration)
+                if wipe_progress > 0:
+                    wipe_layer = Image.new("RGBA", (frame_w, frame_h), (0, 0, 0, 0))
+                    ImageDraw.Draw(wipe_layer).text(
+                        (cursor_x, word_y), w["text"], font=font,
+                        fill=_hex_to_rgba(style.active_word_color, int(255 * opacity)),
+                        stroke_width=style.outline_width, stroke_fill=word_outline,
+                    )
+                    wipe_edge = word_bbox[0] + int((word_bbox[2] - word_bbox[0]) * wipe_progress)
+                    strip = wipe_layer.crop((0, 0, min(frame_w, wipe_edge), frame_h))
+                    word_img.alpha_composite(strip, (0, 0))
 
             if is_active_word and style.active_word_underline:
                 # Grows across the word's own spoken duration -- an

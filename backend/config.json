@@ -151,6 +151,55 @@
       "animation": "word_fade_in",
       "speaker_colors": ["#FFD400", "#00D4FF", "#FF6EC7"]
     },
+    "hormozi": {
+      "font": "assets/fonts/Montserrat-Variable.ttf",
+      "font_size": 56,
+      "color": "#FFFFFF",
+      "outline_color": "#000000",
+      "outline_width": 5,
+      "bg_color": null,
+      "position": "lower_third",
+      "animation": "scale_punch_in",
+      "karaoke_highlight": true,
+      "active_word_color": "#00FFFF"
+    },
+    "mrbeast": {
+      "font": "assets/fonts/Anton-Regular.ttf",
+      "font_size": 60,
+      "color": "#FFFF00",
+      "outline_color": "#000000",
+      "outline_width": 6,
+      "bg_color": null,
+      "position": "lower_third",
+      "animation": "scale_punch_in",
+      "karaoke_highlight": true,
+      "active_word_color": "#FF6600"
+    },
+    "classic-yellow": {
+      "font": "assets/fonts/Anton-Regular.ttf",
+      "font_size": 52,
+      "color": "#FFFFFF",
+      "outline_color": "#000000",
+      "outline_width": 6,
+      "bg_color": null,
+      "position": "lower_third",
+      "animation": "word_fade_in",
+      "karaoke_highlight": true,
+      "active_word_color": "#FFFF00"
+    },
+    "karaoke-wipe": {
+      "font": "assets/fonts/Montserrat-Variable.ttf",
+      "font_size": 46,
+      "color": "#FFFFFF",
+      "outline_color": "#000000",
+      "outline_width": 4,
+      "bg_color": null,
+      "position": "lower_third",
+      "animation": "word_fade_in",
+      "karaoke_highlight": true,
+      "active_word_color": "#0080FF",
+      "active_word_wipe": true
+    },
     "cutout-title": {
       "font": "assets/fonts/Anton-Regular.ttf",
       "font_size": 90,
