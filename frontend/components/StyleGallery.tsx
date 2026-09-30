@@ -9,6 +9,7 @@ const NAME_OVERRIDES: Record<string, string> = {
   "typewriter-glow": "Typewriter Glow",
   "corporate-lower-third": "Corporate Lower Third",
   "name-tag": "Name Tag",
+  "decrypt-reveal": "Decrypt Reveal",
 };
 
 function PreviewCard({ preset, selected, onSelect }: { preset: StylePreset; selected: boolean; onSelect: () => void }) {

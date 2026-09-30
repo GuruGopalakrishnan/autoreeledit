@@ -51,6 +51,16 @@
       "ribbon_tag": true,
       "accent_color": "#FFD400"
     },
+    "decrypt-reveal": {
+      "font": "assets/fonts/Montserrat-Variable.ttf",
+      "font_size": 46,
+      "color": "#39FF14",
+      "outline_color": "#000000",
+      "outline_width": 2,
+      "bg_color": null,
+      "position": "lower_third",
+      "animation": "decrypt"
+    },
     "cutout-title": {
       "font": "assets/fonts/Anton-Regular.ttf",
       "font_size": 90,

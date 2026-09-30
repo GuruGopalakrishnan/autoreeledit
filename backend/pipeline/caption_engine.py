@@ -1,5 +1,6 @@
 """Caption style templates and per-frame text rendering (Pillow)."""
 
+import random
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -60,6 +61,11 @@ class StyleConfig:
     accent_color: str = "#00D4FF"
     # Name Tag (recreates the "Design Lower Thirds" name-plate + ribbon-flag look natively).
     ribbon_tag: bool = False  # small folded-flag accent shape attached under the bg_color bar
+    # Decrypt Text (ported from the open-source OpenSub project's DecryptText
+    # animation): each word scrambles through random characters before
+    # locking in left-to-right, matrix/hacker-style. Selected via
+    # animation="decrypt" rather than a separate flag, since it replaces the
+    # entrance animation itself.
 
 
 _FONT_CACHE: dict[tuple[str, int], ImageFont.FreeTypeFont] = {}
@@ -102,7 +108,36 @@ def _animation_progress(t: float, word_start: float, word_end: float, animation:
         return 1.0, 1.3 - 0.3 * progress
     if animation == "slide_in":
         return min(1.0, (t - word_start) / enter), 1.0
+    if animation == "decrypt":
+        return 1.0, 1.0  # the scramble-to-reveal effect itself is the entrance, no separate fade/scale
     return 1.0, 1.0
+
+
+_DECRYPT_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!@#$%^&*"
+_DECRYPT_DURATION = 0.35  # seconds for a word to fully "lock in", left to right
+
+
+def _decrypt_display_text(text: str, elapsed: float) -> str:
+    """Ported from OpenSub's DecryptText.svelte (sequential reveal mode):
+    characters lock in left-to-right over `_DECRYPT_DURATION`; the rest
+    show a random character each call. Seeded off (text, character index,
+    a coarse time bucket) so repeated calls at the same instant agree, but
+    the scramble still visibly flickers frame to frame."""
+    if elapsed >= _DECRYPT_DURATION:
+        return text
+    if elapsed <= 0:
+        revealed = 0
+    else:
+        revealed = int(len(text) * elapsed / _DECRYPT_DURATION)
+    tick = int(elapsed * 20)  # ~20 scramble flickers/sec
+    chars = []
+    for i, ch in enumerate(text):
+        if ch == " " or i < revealed:
+            chars.append(ch)
+        else:
+            rng = random.Random(f"{text}|{i}|{tick}")
+            chars.append(rng.choice(_DECRYPT_CHARS))
+    return "".join(chars)
 
 
 def _wrap_into_lines(visible: list[dict], advances: list[float], max_width: float) -> list[list[int]]:
@@ -265,9 +300,13 @@ def render_caption_frame(
             word_draw = ImageDraw.Draw(word_img)
             color = _hex_to_rgba(style.color, int(255 * opacity))
             word_outline = _hex_to_rgba(style.outline_color, int(255 * opacity)) if style.outline_color else None
+            # word_advance stays keyed off the true word text (below) even in
+            # decrypt mode, so scrambled substitute glyphs of different
+            # widths never shift layout/line-wrapping frame to frame.
+            text_to_draw = _decrypt_display_text(w["text"], current_time - w["start"]) if style.animation == "decrypt" else w["text"]
             word_draw.text(
                 (cursor_x, baseline_y),
-                w["text"],
+                text_to_draw,
                 font=font,
                 fill=color,
                 stroke_width=style.outline_width,
