@@ -10,6 +10,10 @@ const NAME_OVERRIDES: Record<string, string> = {
   "corporate-lower-third": "Corporate Lower Third",
   "name-tag": "Name Tag",
   "decrypt-reveal": "Decrypt Reveal",
+  "glitch-pop": "Glitch Pop",
+  "wave-bounce": "Wave Bounce",
+  "rise-up": "Rise Up",
+  "blur-pop": "Blur Pop",
 };
 
 function PreviewCard({ preset, selected, onSelect }: { preset: StylePreset; selected: boolean; onSelect: () => void }) {

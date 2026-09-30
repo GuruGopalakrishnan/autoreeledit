@@ -61,6 +61,46 @@
       "position": "lower_third",
       "animation": "decrypt"
     },
+    "glitch-pop": {
+      "font": "assets/fonts/Anton-Regular.ttf",
+      "font_size": 60,
+      "color": "#FFFFFF",
+      "outline_color": "#000000",
+      "outline_width": 3,
+      "bg_color": null,
+      "position": "center",
+      "animation": "glitch_text"
+    },
+    "wave-bounce": {
+      "font": "assets/fonts/Montserrat-Variable.ttf",
+      "font_size": 46,
+      "color": "#FF6EC7",
+      "outline_color": "#000000",
+      "outline_width": 2,
+      "bg_color": null,
+      "position": "lower_third",
+      "animation": "wave"
+    },
+    "rise-up": {
+      "font": "assets/fonts/Montserrat-Variable.ttf",
+      "font_size": 44,
+      "color": "#FFFFFF",
+      "outline_color": "#000000",
+      "outline_width": 2,
+      "bg_color": null,
+      "position": "lower_third",
+      "animation": "rise_up"
+    },
+    "blur-pop": {
+      "font": "assets/fonts/Anton-Regular.ttf",
+      "font_size": 64,
+      "color": "#00D4FF",
+      "outline_color": "#000000",
+      "outline_width": 3,
+      "bg_color": null,
+      "position": "center",
+      "animation": "blur_pop"
+    },
     "cutout-title": {
       "font": "assets/fonts/Anton-Regular.ttf",
       "font_size": 90,

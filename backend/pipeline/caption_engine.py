@@ -1,5 +1,6 @@
 """Caption style templates and per-frame text rendering (Pillow)."""
 
+import math
 import random
 import re
 from dataclasses import dataclass
@@ -94,23 +95,110 @@ def _hex_to_rgba(hex_color: str, alpha: int = 255) -> tuple[int, int, int, int]:
     return (r, g, b, alpha)
 
 
-def _animation_progress(t: float, word_start: float, word_end: float, animation: str) -> tuple[float, float]:
-    """Returns (opacity, scale) for a word at time `t`, given its own
-    [word_start, word_end] window and the style's animation type."""
+def _animation_progress(t: float, word_start: float, word_end: float, animation: str) -> tuple[float, float, float]:
+    """Returns (opacity, scale, blur_radius) for a word at time `t`, given
+    its own [word_start, word_end] window and the style's animation type."""
     enter = 0.15
     if t < word_start:
-        return 0.0, 1.0
+        return 0.0, 1.0, 0.0
 
     if animation in ("word_fade_in", "typewriter"):
-        return min(1.0, (t - word_start) / enter), 1.0
+        return min(1.0, (t - word_start) / enter), 1.0, 0.0
     if animation == "scale_punch_in":
         progress = min(1.0, (t - word_start) / enter)
-        return 1.0, 1.3 - 0.3 * progress
+        return 1.0, 1.3 - 0.3 * progress, 0.0
     if animation == "slide_in":
-        return min(1.0, (t - word_start) / enter), 1.0
-    if animation == "decrypt":
-        return 1.0, 1.0  # the scramble-to-reveal effect itself is the entrance, no separate fade/scale
-    return 1.0, 1.0
+        return min(1.0, (t - word_start) / enter), 1.0, 0.0
+    if animation in ("decrypt", "wave", "glitch_text"):
+        # Reveal is handled per-character/per-layer in the draw loop instead
+        # of a uniform word-level opacity/scale.
+        return 1.0, 1.0, 0.0
+    if animation == "rise_up":
+        return min(1.0, (t - word_start) / enter), 1.0, 0.0
+    if animation == "blur_pop":
+        # Ported from OpenSub's PopUp.svelte: blur+scale overshoot settling
+        # to 1.0, opacity ramping in step with the first (overshoot) phase.
+        blur_enter = 0.3
+        p = min(1.0, (t - word_start) / blur_enter)
+        opacity = min(1.0, p / 0.65)
+        if p < 0.65:
+            scale = 0.88 + 0.16 * (p / 0.65)
+        else:
+            scale = 1.04 - 0.04 * ((p - 0.65) / 0.35)
+        blur = 2.0 * max(0.0, 1.0 - p / 0.65)
+        return opacity, scale, blur
+    return 1.0, 1.0, 0.0
+
+
+_WAVE_STAGGER = 0.03
+_WAVE_RISE_DURATION = 0.07
+_WAVE_SETTLE_DURATION = 0.06
+_RISE_UP_ENTER = 0.15
+_GLITCH_DURATION = 0.28
+
+
+def _rise_up_offset(t: float, word_start: float, font_size: int) -> int:
+    """Ported from OpenSub's BottomToTop.svelte: the word rises from +20px
+    (scaled to font size) up into place as it fades in."""
+    progress = min(1.0, max(0.0, (t - word_start) / _RISE_UP_ENTER))
+    return int(font_size * 0.4 * (1.0 - progress))
+
+
+def _draw_wave_word(draw: "ImageDraw.ImageDraw", cursor_x: int, baseline_y: int, text: str, font: ImageFont.FreeTypeFont, style: "StyleConfig", elapsed: float, outline_fill: tuple | None) -> None:
+    """Ported from OpenSub's Wave.svelte: each character bounces up
+    (opacity + vertical offset) with a small stagger between characters."""
+    x = float(cursor_x)
+    for i, ch in enumerate(text):
+        local_t = elapsed - i * _WAVE_STAGGER
+        if local_t <= 0:
+            opacity, y_off = 0.0, 12.0
+        elif local_t < _WAVE_RISE_DURATION:
+            p = local_t / _WAVE_RISE_DURATION
+            opacity, y_off = p, 12.0 - 26.0 * p
+        elif local_t < _WAVE_RISE_DURATION + _WAVE_SETTLE_DURATION:
+            p = (local_t - _WAVE_RISE_DURATION) / _WAVE_SETTLE_DURATION
+            opacity, y_off = 1.0, -14.0 + 14.0 * p
+        else:
+            opacity, y_off = 1.0, 0.0
+
+        advance = font.getlength(ch)
+        if opacity > 0 and ch != " ":
+            fill = _hex_to_rgba(style.color, int(255 * opacity))
+            draw.text((x, baseline_y + y_off), ch, font=font, fill=fill, stroke_width=style.outline_width, stroke_fill=outline_fill)
+        x += advance
+
+
+def _draw_glitch_word(word_img: Image.Image, cursor_x: int, baseline_y: int, text: str, font: ImageFont.FreeTypeFont, style: "StyleConfig", elapsed: float, outline_fill: tuple | None) -> None:
+    """Ported from OpenSub's GlitchText.svelte: a quick chromatic-aberration
+    jitter (cyan/magenta band ghosts either side of the true text) settling
+    into place, instead of a plain fade."""
+    draw = ImageDraw.Draw(word_img)
+    if elapsed >= _GLITCH_DURATION:
+        draw.text((cursor_x, baseline_y), text, font=font, fill=_hex_to_rgba(style.color), stroke_width=style.outline_width, stroke_fill=outline_fill)
+        return
+
+    frac = elapsed / _GLITCH_DURATION
+    base_opacity = min(1.0, frac / 0.12)
+    draw.text(
+        (cursor_x, baseline_y), text, font=font,
+        fill=_hex_to_rgba(style.color, int(255 * base_opacity)),
+        stroke_width=style.outline_width, stroke_fill=outline_fill,
+    )
+    if frac < 0.12:
+        return
+
+    shake_frac = min(1.0, (frac - 0.12) / 0.42)
+    jitter = int(4 * (1.0 - shake_frac) * math.sin(elapsed * 90))
+    bbox = draw.textbbox((cursor_x, baseline_y), text, font=font, stroke_width=style.outline_width)
+    band_h = max(1, (bbox[3] - bbox[1]) // 4)
+
+    for color, dx, top in ((( 0, 229, 255, 190), -2 + jitter, bbox[1]), ((255, 43, 214, 190), 2 - jitter, bbox[3] - band_h)):
+        ghost = Image.new("RGBA", word_img.size, (0, 0, 0, 0))
+        ImageDraw.Draw(ghost).text((cursor_x + dx, baseline_y), text, font=font, fill=color)
+        top = max(0, min(word_img.height - 1, top))
+        bottom = max(top + 1, min(word_img.height, top + band_h))
+        strip = ghost.crop((0, top, word_img.width, bottom))
+        word_img.alpha_composite(strip, (0, top))
 
 
 _DECRYPT_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!@#$%^&*"
@@ -289,7 +377,8 @@ def render_caption_frame(
         for i in line:
             w = visible[i]
             word_advance = word_advances[i]
-            opacity, scale = _animation_progress(current_time, w["start"], w["end"], style.animation)
+            opacity, scale, blur = _animation_progress(current_time, w["start"], w["end"], style.animation)
+            elapsed = current_time - w["start"]
 
             if opacity <= 0:
                 cursor_x += int(word_advance)
@@ -300,18 +389,31 @@ def render_caption_frame(
             word_draw = ImageDraw.Draw(word_img)
             color = _hex_to_rgba(style.color, int(255 * opacity))
             word_outline = _hex_to_rgba(style.outline_color, int(255 * opacity)) if style.outline_color else None
-            # word_advance stays keyed off the true word text (below) even in
-            # decrypt mode, so scrambled substitute glyphs of different
-            # widths never shift layout/line-wrapping frame to frame.
-            text_to_draw = _decrypt_display_text(w["text"], current_time - w["start"]) if style.animation == "decrypt" else w["text"]
-            word_draw.text(
-                (cursor_x, baseline_y),
-                text_to_draw,
-                font=font,
-                fill=color,
-                stroke_width=style.outline_width,
-                stroke_fill=word_outline,
-            )
+
+            word_y = baseline_y
+            if style.animation == "rise_up":
+                word_y += _rise_up_offset(current_time, w["start"], effective_size)
+
+            if style.animation == "wave":
+                _draw_wave_word(word_draw, cursor_x, word_y, w["text"], font, style, elapsed, word_outline)
+            elif style.animation == "glitch_text":
+                _draw_glitch_word(word_img, cursor_x, word_y, w["text"], font, style, elapsed, word_outline)
+            else:
+                # word_advance stays keyed off the true word text (below) even
+                # in decrypt mode, so scrambled substitute glyphs of
+                # different widths never shift layout/line-wrapping frame to frame.
+                text_to_draw = _decrypt_display_text(w["text"], elapsed) if style.animation == "decrypt" else w["text"]
+                word_draw.text(
+                    (cursor_x, word_y),
+                    text_to_draw,
+                    font=font,
+                    fill=color,
+                    stroke_width=style.outline_width,
+                    stroke_fill=word_outline,
+                )
+
+            if blur > 0:
+                word_img = word_img.filter(ImageFilter.GaussianBlur(radius=blur))
 
             if scale != 1.0:
                 scaled_w, scaled_h = max(1, int(frame_w * scale)), max(1, int(frame_h * scale))
