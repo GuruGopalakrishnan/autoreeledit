@@ -32,7 +32,7 @@ from pipeline.captions import (
     set_caption_title_moment,
 )
 from pipeline.compositor import run_compositor
-from pipeline.runner import PipelineError, apply_style_choice, run_pipeline
+from pipeline.runner import PipelineError, apply_style_choice, pick_auto_style, run_pipeline
 from pipeline.srt_parser import load_words_from_srt
 from pipeline.transcriber import transcribe
 from pipeline.video_meta import probe_video
@@ -139,7 +139,7 @@ def _run_job(
             pct = int(done / total * 100) if total else 0
             _set_job(job_id, progress=pct)
 
-        run_pipeline(
+        used_style = run_pipeline(
             str(input_path),
             str(output_path),
             config,
@@ -149,7 +149,7 @@ def _run_job(
             on_stage=on_stage,
             on_progress=on_progress,
         )
-        _set_job(job_id, status="done", progress=100)
+        _set_job(job_id, status="done", progress=100, styleUsed=used_style)
     except PipelineError as e:
         _set_job(job_id, status="failed", error=str(e))
     except Exception as e:  # noqa: BLE001 -- last-resort catch so a job always resolves to failed, never hangs "processing" forever
@@ -159,14 +159,14 @@ def _run_job(
 @app.post("/api/jobs")
 async def create_job(
     video: UploadFile = File(...),
-    base_style: str = Form("typewriter-glow"),
+    base_style: str = Form("auto"),
     auto_mode: bool = Form(True),
     transcript: UploadFile | None = File(None),
 ):
     config = _load_config()
     valid_base_styles = _valid_base_styles(config)
-    if base_style not in valid_base_styles:
-        raise HTTPException(400, f"base_style must be one of {sorted(valid_base_styles)}")
+    if base_style != "auto" and base_style not in valid_base_styles:
+        raise HTTPException(400, f"base_style must be 'auto' or one of {sorted(valid_base_styles)}")
 
     job_id = uuid.uuid4().hex
     ext = Path(video.filename or "input.mp4").suffix or ".mp4"
@@ -322,6 +322,8 @@ def _run_project_render(job_id: str, project: dict, output_path: Path, base_styl
     config["track_hands"] = track_hands
     try:
         words = [dict(w) for w in project["words"]]  # apply_style_choice may mutate is_keyword; don't touch the stored copy
+        if base_style == "auto":
+            base_style = pick_auto_style(words, config)
         effective_config = apply_style_choice(config, words, base_style, auto_mode)
 
         def on_progress(done: int, total: int) -> None:
@@ -330,7 +332,7 @@ def _run_project_render(job_id: str, project: dict, output_path: Path, base_styl
 
         _set_job(job_id, status="rendering", progress=0)
         run_compositor(project["video_path"], str(output_path), words, effective_config, on_progress=on_progress)
-        _set_job(job_id, status="done", progress=100)
+        _set_job(job_id, status="done", progress=100, styleUsed=base_style)
     except Exception as e:  # noqa: BLE001
         _set_job(job_id, status="failed", error=f"Rendering failed: {e}")
 
@@ -347,8 +349,8 @@ async def render_project(
 
     config = _load_config()
     valid_base_styles = _valid_base_styles(config)
-    if base_style not in valid_base_styles:
-        raise HTTPException(400, f"base_style must be one of {sorted(valid_base_styles)}")
+    if base_style != "auto" and base_style not in valid_base_styles:
+        raise HTTPException(400, f"base_style must be 'auto' or one of {sorted(valid_base_styles)}")
 
     job_id = uuid.uuid4().hex
     output_path = OUTPUT_DIR / f"{job_id}.mp4"

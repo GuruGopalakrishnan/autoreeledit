@@ -7,6 +7,7 @@ export type Job = {
   status: JobStatus;
   progress: number;
   error: string | null;
+  styleUsed?: string | null;
 };
 
 // Mirrors backend/pipeline/caption_engine.py's StyleConfig -- one entry per

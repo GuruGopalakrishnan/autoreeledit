@@ -1,29 +1,10 @@
 "use client";
 
 import { fontFamilyForPath } from "@/lib/fonts";
+import { styleDisplayName } from "@/lib/styleNames";
 import type { StylePreset } from "@/lib/api";
 
 const SAMPLE_TEXT = "Create Better Content";
-
-const NAME_OVERRIDES: Record<string, string> = {
-  "typewriter-glow": "Typewriter Glow",
-  "corporate-lower-third": "Corporate Lower Third",
-  "name-tag": "Name Tag",
-  "decrypt-reveal": "Decrypt Reveal",
-  "glitch-pop": "Glitch Pop",
-  "wave-bounce": "Wave Bounce",
-  "rise-up": "Rise Up",
-  "blur-pop": "Blur Pop",
-  "karaoke-highlight": "Karaoke Highlight",
-  "popline-box": "PopLine Box",
-  "flamingo-underline": "Flamingo Underline",
-  "speaker-colors": "Speaker Colors",
-  "hormozi": "Hormozi",
-  "mrbeast": "MrBeast",
-  "classic-yellow": "Classic Yellow",
-  "karaoke-wipe": "Karaoke Wipe",
-  "aarit-zoom": "Aarit Zoom",
-};
 
 function PreviewCard({ preset, selected, onSelect }: { preset: StylePreset; selected: boolean; onSelect: () => void }) {
   const fontFamily = fontFamilyForPath(preset.font);
@@ -52,7 +33,7 @@ function PreviewCard({ preset, selected, onSelect }: { preset: StylePreset; sele
         </span>
       </div>
       <div className="bg-[#111117] px-2.5 py-2">
-        <p className="truncate text-xs font-medium text-neutral-200">{NAME_OVERRIDES[preset.id] ?? preset.id}</p>
+        <p className="truncate text-xs font-medium text-neutral-200">{styleDisplayName(preset.id)}</p>
       </div>
     </button>
   );

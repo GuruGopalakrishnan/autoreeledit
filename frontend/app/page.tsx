@@ -3,7 +3,7 @@
 import { useCallback, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
-import { createProject } from "@/lib/api";
+import { createJob, createProject } from "@/lib/api";
 
 export default function ProjectSetupPage() {
   const router = useRouter();
@@ -13,6 +13,7 @@ export default function ProjectSetupPage() {
   const [transcriptText, setTranscriptText] = useState("");
   const [transcriptMode, setTranscriptMode] = useState<"upload" | "paste">("upload");
   const [starting, setStarting] = useState(false);
+  const [autoStarting, setAutoStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const transcriptInputRef = useRef<HTMLInputElement>(null);
@@ -26,22 +27,37 @@ export default function ProjectSetupPage() {
     setError(null);
   }, []);
 
+  const resolveTranscript = useCallback((): File | null => {
+    return transcriptMode === "paste" && transcriptText.trim()
+      ? new File([transcriptText], "pasted.srt", { type: "text/plain" })
+      : transcriptFile;
+  }, [transcriptFile, transcriptMode, transcriptText]);
+
   const startProject = useCallback(async () => {
     if (!file) return;
     setStarting(true);
     setError(null);
     try {
-      const transcript =
-        transcriptMode === "paste" && transcriptText.trim()
-          ? new File([transcriptText], "pasted.srt", { type: "text/plain" })
-          : transcriptFile;
-      const { projectId } = await createProject(file, transcript);
+      const { projectId } = await createProject(file, resolveTranscript());
       router.push(`/editor/${projectId}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to create the project.");
       setStarting(false);
     }
-  }, [file, transcriptFile, transcriptMode, transcriptText, router]);
+  }, [file, resolveTranscript, router]);
+
+  const startAutoExport = useCallback(async () => {
+    if (!file) return;
+    setAutoStarting(true);
+    setError(null);
+    try {
+      const { jobId } = await createJob(file, "auto", true, resolveTranscript());
+      router.push(`/quick/${jobId}`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to start the export.");
+      setAutoStarting(false);
+    }
+  }, [file, resolveTranscript, router]);
 
   return (
     <div className="flex min-h-screen">
@@ -186,15 +202,24 @@ export default function ProjectSetupPage() {
           <aside className="h-fit rounded-xl border border-white/10 bg-[#111117] p-5">
             <h2 className="mb-1 text-sm font-semibold">Next</h2>
             <p className="mb-4 text-xs text-neutral-500">
-              Opens the editor: transcription runs, then you review captions on a timeline, pick a style, and export.
+              Auto-export picks a caption style from the transcript itself (energy, pace, multiple speakers) and
+              renders straight away -- no editor step. Open Editor lets you review captions and pick a style by hand.
             </p>
 
             {error && <p className="mb-3 text-xs text-red-400">{error}</p>}
 
             <button
-              onClick={startProject}
-              disabled={!file || starting}
+              onClick={startAutoExport}
+              disabled={!file || autoStarting || starting}
               className="w-full rounded-lg bg-[#7c5cfc] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#6a4ce8] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {autoStarting ? "Starting…" : "Auto-Export (AI picks style) →"}
+            </button>
+
+            <button
+              onClick={startProject}
+              disabled={!file || starting || autoStarting}
+              className="mt-2 w-full rounded-lg border border-white/15 px-4 py-2.5 text-sm font-medium text-neutral-200 hover:border-white/30 disabled:cursor-not-allowed disabled:opacity-40"
             >
               {starting ? "Creating…" : "Open Editor →"}
             </button>
