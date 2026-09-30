@@ -101,6 +101,45 @@
       "position": "center",
       "animation": "blur_pop"
     },
+    "karaoke-highlight": {
+      "font": "assets/fonts/Montserrat-Variable.ttf",
+      "font_size": 46,
+      "color": "#FFFFFF",
+      "outline_color": "#000000",
+      "outline_width": 3,
+      "bg_color": null,
+      "position": "lower_third",
+      "animation": "word_fade_in",
+      "karaoke_highlight": true,
+      "active_word_color": "#24DEFF"
+    },
+    "popline-box": {
+      "font": "assets/fonts/Anton-Regular.ttf",
+      "font_size": 48,
+      "color": "#FFFFFF",
+      "outline_color": "#000000",
+      "outline_width": 3,
+      "bg_color": null,
+      "position": "lower_third",
+      "animation": "word_fade_in",
+      "karaoke_highlight": true,
+      "active_word_color": "#101318",
+      "active_word_box": true,
+      "active_word_box_color": "#C7FF2E"
+    },
+    "flamingo-underline": {
+      "font": "assets/fonts/Montserrat-Variable.ttf",
+      "font_size": 44,
+      "color": "#FFFFFF",
+      "outline_color": "#000000",
+      "outline_width": 2,
+      "bg_color": null,
+      "position": "lower_third",
+      "animation": "word_fade_in",
+      "karaoke_highlight": true,
+      "active_word_color": "#B685FF",
+      "active_word_underline": true
+    },
     "cutout-title": {
       "font": "assets/fonts/Anton-Regular.ttf",
       "font_size": 90,

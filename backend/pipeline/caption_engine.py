@@ -67,6 +67,14 @@ class StyleConfig:
     # locking in left-to-right, matrix/hacker-style. Selected via
     # animation="decrypt" rather than a separate flag, since it replaces the
     # entrance animation itself.
+    # Karaoke word highlighting (ported from captions.js's getFillColor /
+    # box-word / underline): the word currently being spoken switches color,
+    # independent of whichever entrance animation is also running.
+    karaoke_highlight: bool = False
+    active_word_color: str = "#FFD400"
+    active_word_box: bool = False  # colored pill behind just the active word
+    active_word_box_color: str | None = None  # falls back to active_word_color
+    active_word_underline: bool = False  # underline that grows across the word's own spoken duration
 
 
 _FONT_CACHE: dict[tuple[str, int], ImageFont.FreeTypeFont] = {}
@@ -384,15 +392,30 @@ def render_caption_frame(
                 cursor_x += int(word_advance)
                 continue
 
+            is_active_word = style.karaoke_highlight and w["start"] <= current_time <= w["end"]
+            effective_color = style.active_word_color if is_active_word else style.color
+
             font = _font_for_text(w["text"], style.font, effective_size)
             word_img = Image.new("RGBA", (frame_w, frame_h), (0, 0, 0, 0))
             word_draw = ImageDraw.Draw(word_img)
-            color = _hex_to_rgba(style.color, int(255 * opacity))
+            color = _hex_to_rgba(effective_color, int(255 * opacity))
             word_outline = _hex_to_rgba(style.outline_color, int(255 * opacity)) if style.outline_color else None
 
             word_y = baseline_y
             if style.animation == "rise_up":
                 word_y += _rise_up_offset(current_time, w["start"], effective_size)
+
+            if is_active_word and (style.active_word_box or style.active_word_underline):
+                word_bbox = word_draw.textbbox((cursor_x, word_y), w["text"], font=font, stroke_width=style.outline_width)
+
+            if is_active_word and style.active_word_box:
+                box_color = style.active_word_box_color or style.active_word_color
+                pad_x, pad_y = int(effective_size * 0.18), int(effective_size * 0.08)
+                word_draw.rounded_rectangle(
+                    [(word_bbox[0] - pad_x, word_bbox[1] - pad_y), (word_bbox[2] + pad_x, word_bbox[3] + pad_y)],
+                    radius=max(2, int(effective_size * 0.12)),
+                    fill=_hex_to_rgba(box_color, int(255 * opacity)),
+                )
 
             if style.animation == "wave":
                 _draw_wave_word(word_draw, cursor_x, word_y, w["text"], font, style, elapsed, word_outline)
@@ -410,6 +433,21 @@ def render_caption_frame(
                     fill=color,
                     stroke_width=style.outline_width,
                     stroke_fill=word_outline,
+                )
+
+            if is_active_word and style.active_word_underline:
+                # Grows across the word's own spoken duration -- an
+                # improvement on captions.js's source, which always passes a
+                # constant (ease(1) == 1) and so never actually animates the
+                # underline's width despite computing a per-word progress.
+                word_duration = max(0.05, w["end"] - w["start"])
+                underline_progress = min(1.0, (current_time - w["start"]) / word_duration)
+                underline_y = word_bbox[3] + max(2, int(effective_size * 0.08))
+                underline_w = max(2, int(effective_size * 0.07))
+                word_draw.line(
+                    [(word_bbox[0], underline_y), (word_bbox[0] + int((word_bbox[2] - word_bbox[0]) * underline_progress), underline_y)],
+                    fill=_hex_to_rgba(style.active_word_color, int(255 * opacity)),
+                    width=underline_w,
                 )
 
             if blur > 0:

@@ -14,6 +14,9 @@ const NAME_OVERRIDES: Record<string, string> = {
   "wave-bounce": "Wave Bounce",
   "rise-up": "Rise Up",
   "blur-pop": "Blur Pop",
+  "karaoke-highlight": "Karaoke Highlight",
+  "popline-box": "PopLine Box",
+  "flamingo-underline": "Flamingo Underline",
 };
 
 function PreviewCard({ preset, selected, onSelect }: { preset: StylePreset; selected: boolean; onSelect: () => void }) {
