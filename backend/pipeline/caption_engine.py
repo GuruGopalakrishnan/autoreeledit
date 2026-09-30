@@ -127,7 +127,7 @@ def _animation_progress(t: float, word_start: float, word_end: float, animation:
         return 1.0, 1.3 - 0.3 * progress, 0.0
     if animation == "slide_in":
         return min(1.0, (t - word_start) / enter), 1.0, 0.0
-    if animation in ("decrypt", "wave", "glitch_text"):
+    if animation in ("decrypt", "wave", "glitch_text", "letter_zoom"):
         # Reveal is handled per-character/per-layer in the draw loop instead
         # of a uniform word-level opacity/scale.
         return 1.0, 1.0, 0.0
@@ -217,6 +217,52 @@ def _draw_glitch_word(word_img: Image.Image, cursor_x: int, baseline_y: int, tex
         bottom = max(top + 1, min(word_img.height, top + band_h))
         strip = ghost.crop((0, top, word_img.width, bottom))
         word_img.alpha_composite(strip, (0, top))
+
+
+_LETTER_ZOOM_STAGGER = 0.05  # seconds between each letter's own entrance start
+_LETTER_ZOOM_DURATION = 0.33  # seconds for a letter to settle from zoomed-in to resting scale
+_LETTER_ZOOM_START_SCALE = 1.35
+
+
+def _draw_letter_zoom_word(word_img: Image.Image, cursor_x: int, baseline_y: int, text: str, font: ImageFont.FreeTypeFont, style: "StyleConfig", elapsed: float, outline_fill: tuple | None, fill_color: str) -> None:
+    """Ported from remotion-captions-themes' Aarit theme: each letter zooms
+    in from 1.35x down to resting scale, staggered letter by letter, rather
+    than the whole word scaling as one unit. Each letter is rendered on its
+    own small canvas (sized to its own ink + outline) and scaled around its
+    own center, so neighboring unscaled letters don't shift position."""
+    x = float(cursor_x)
+    probe = ImageDraw.Draw(word_img)
+    for i, ch in enumerate(text):
+        advance = font.getlength(ch)
+        if ch == " ":
+            x += advance
+            continue
+
+        local_t = elapsed - i * _LETTER_ZOOM_STAGGER
+        progress = min(1.0, max(0.0, local_t / _LETTER_ZOOM_DURATION))
+        scale = _LETTER_ZOOM_START_SCALE - (_LETTER_ZOOM_START_SCALE - 1.0) * progress
+
+        bbox = probe.textbbox((0, 0), ch, font=font, stroke_width=style.outline_width)
+        lw, lh = max(1, bbox[2] - bbox[0]), max(1, bbox[3] - bbox[1])
+        pad = max(4, style.outline_width * 2)
+        letter_canvas = Image.new("RGBA", (lw + pad * 2, lh + pad * 2), (0, 0, 0, 0))
+        ImageDraw.Draw(letter_canvas).text(
+            (pad - bbox[0], pad - bbox[1]), ch, font=font,
+            fill=_hex_to_rgba(fill_color), stroke_width=style.outline_width, stroke_fill=outline_fill,
+        )
+
+        unscaled_x = x + bbox[0] - pad
+        unscaled_y = baseline_y + bbox[1] - pad
+        center_x, center_y = unscaled_x + letter_canvas.width / 2, unscaled_y + letter_canvas.height / 2
+
+        if scale != 1.0:
+            new_w, new_h = max(1, int(letter_canvas.width * scale)), max(1, int(letter_canvas.height * scale))
+            letter_canvas = letter_canvas.resize((new_w, new_h), Image.LANCZOS)
+        else:
+            new_w, new_h = letter_canvas.width, letter_canvas.height
+
+        word_img.alpha_composite(letter_canvas, (int(center_x - new_w / 2), int(center_y - new_h / 2)))
+        x += advance
 
 
 _DECRYPT_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!@#$%^&*"
@@ -436,6 +482,8 @@ def render_caption_frame(
                 _draw_wave_word(word_draw, cursor_x, word_y, w["text"], font, style, elapsed, word_outline)
             elif style.animation == "glitch_text":
                 _draw_glitch_word(word_img, cursor_x, word_y, w["text"], font, style, elapsed, word_outline)
+            elif style.animation == "letter_zoom":
+                _draw_letter_zoom_word(word_img, cursor_x, word_y, w["text"], font, style, elapsed, word_outline, effective_color)
             else:
                 # word_advance stays keyed off the true word text (below) even
                 # in decrypt mode, so scrambled substitute glyphs of

@@ -200,6 +200,18 @@
       "active_word_color": "#0080FF",
       "active_word_wipe": true
     },
+    "aarit-zoom": {
+      "font": "assets/fonts/Anton-Regular.ttf",
+      "font_size": 54,
+      "color": "#FFFFFF",
+      "outline_color": "#000000",
+      "outline_width": 3,
+      "bg_color": null,
+      "position": "lower_third",
+      "animation": "letter_zoom",
+      "karaoke_highlight": true,
+      "active_word_color": "#FFD700"
+    },
     "cutout-title": {
       "font": "assets/fonts/Anton-Regular.ttf",
       "font_size": 90,

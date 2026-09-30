@@ -22,6 +22,7 @@ const NAME_OVERRIDES: Record<string, string> = {
   "mrbeast": "MrBeast",
   "classic-yellow": "Classic Yellow",
   "karaoke-wipe": "Karaoke Wipe",
+  "aarit-zoom": "Aarit Zoom",
 };
 
 function PreviewCard({ preset, selected, onSelect }: { preset: StylePreset; selected: boolean; onSelect: () => void }) {
